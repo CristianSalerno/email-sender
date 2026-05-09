@@ -129,4 +129,4 @@ app.post('/api/send-emails', upload.single('attachment'), async (req, res) => {
   }
 });
 
-app.listen(3000, () => console.log('App corriendo en http://localhost:3000'));
+module.exports = app;
