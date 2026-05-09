@@ -1,7 +1,23 @@
 {
-  "buildCommand": "npm install",
-  "devCommand": "npm start",
-  "installCommand": "npm install",
-  "framework": null,
-  "outputDirectory": "public"
+  "version": 2,
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/server.js"
+    }
+  ]
 }
