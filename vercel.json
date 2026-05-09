@@ -5,11 +5,5 @@
       "memory": 1024,
       "maxDuration": 10
     }
-  },
-  "headers": {
-    "source": "/(.*)",
-    "headers": [
-      { "key": "X-Content-Type-Options", "value": "nosniff" }
-    ]
   }
 }
