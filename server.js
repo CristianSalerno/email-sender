@@ -95,7 +95,10 @@ app.post('/api/send', async (req, res) => {
         }],
         from: { email: process.env.FROM_EMAIL },
         subject: personalizedSubject,
-        content: [{ type: 'text/plain', value: personalizedBody }]
+        content: [
+          { type: 'text/plain', value: personalizedBody },
+          { type: 'text/html', value: personalizedBody.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>') }
+        ]
       };
 
       if (contact.attachment) {

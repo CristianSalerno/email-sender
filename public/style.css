@@ -34,6 +34,18 @@ header h1 { font-size: 2.5rem; margin-bottom: 10px; }
 .contact-info { display: flex; flex-direction: column; }
 .contact-name, .contact-company { font-size: 0.85rem; color: #888; margin-top: 2px; }
 .hint { color: #667eea; display: block; margin-top: 4px; }
+.editor-container { border: 2px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+.editor-tabs { display: flex; background: #f5f5f5; border-bottom: 1px solid #e0e0e0; }
+.tab-btn { padding: 10px 20px; border: none; background: none; cursor: pointer; font-weight: 600; color: #666; }
+.tab-btn.active { background: white; color: #667eea; border-bottom: 2px solid #667eea; }
+#body { border: none; border-radius: 0; resize: vertical; min-height: 200px; }
+#body:focus { border: none; }
+.preview-box { padding: 16px; min-height: 200px; background: #fafafa; }
+.preview-box h1, .preview-box h2, .preview-box h3 { color: #333; margin: 16px 0 8px 0; }
+.preview-box p { margin: 8px 0; }
+.preview-box ul, .preview-box ol { margin: 8px 0 8px 20px; }
+.preview-box strong { font-weight: bold; }
+.preview-box em { font-style: italic; }
 .summary { margin-top: 12px; font-weight: 600; color: #333; text-align: right; }
 .hidden { display: none; }
 #results { padding: 16px; background: #f5f5f5; border-radius: 8px; max-height: 200px; overflow-y: auto; }

@@ -76,8 +76,22 @@
         </div>
         <div class="form-group">
           <label>Message:</label>
-          <textarea id="body" rows="6" placeholder="Write your message here..." required></textarea>
-          <small class="hint">Use &#123;&#123;name&#125;&#125; or &#123;&#123;company&#125;&#125; for personalization</small>
+          <div class="editor-container">
+            <div class="editor-tabs">
+              <button type="button" class="tab-btn active" onclick="showTab('write')">Write</button>
+              <button type="button" class="tab-btn" onclick="showTab('preview')">Preview</button>
+            </div>
+            <textarea id="body" placeholder="Write your message here...
+
+Use {{name}} for personalization
+Use {{company}} for company name
+Use {{email}} for email address
+
+# Markdown supported:
+**bold**, *italic*, lists, etc." required></textarea>
+            <div id="preview" class="preview-box hidden"></div>
+          </div>
+          <small class="hint">Markdown supported. Use &#123;&#123;name&#125;&#125;, &#123;&#123;company&#125;&#125; for personalization</small>
         </div>
         <div class="form-group">
           <label>Attachment (optional):</label>
@@ -93,14 +107,41 @@
     </section>
   </div>
 
-  <script src="app.js"></script>
-  <script>
+<script src="app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+  function showTab(tab) {
+    const textarea = document.getElementById('body');
+    const preview = document.getElementById('preview');
+    const tabs = document.querySelectorAll('.tab-btn');
+    
+    if (tab === 'write') {
+      textarea.classList.remove('hidden');
+      preview.classList.add('hidden');
+      tabs[0].classList.add('active');
+      tabs[1].classList.remove('active');
+    } else {
+      textarea.classList.add('hidden');
+      preview.classList.remove('hidden');
+      preview.innerHTML = marked.parse(textarea.value);
+      tabs[0].classList.remove('active');
+      tabs[1].classList.add('active');
+    }
+  }
+  
+  document.getElementById('body').addEventListener('input', function() {
+    if (!document.getElementById('preview').classList.contains('hidden')) {
+      document.getElementById('preview').innerHTML = marked.parse(this.value);
+    }
+  });
+</script>
+<script>
     window.addEventListener('load', () => {
       setTimeout(() => {
         document.getElementById('loading-screen').style.display = 'none';
         document.getElementById('main-content').style.display = 'block';
       }, 500);
     });
-  </script>
+</script>
 </body>
 </html>
