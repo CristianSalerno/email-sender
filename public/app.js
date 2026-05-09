@@ -23,6 +23,8 @@ function updateStatus(data) {
     el.textContent = '✅ Connected to SendGrid';
     formContainer.classList.add('hidden');
     connectedMsg.classList.remove('hidden');
+    connectedMsg.innerHTML = `<p>📧 Sender: <strong>${data.email}</strong></p>`;
+    document.getElementById('from-email').value = data.email || '';
     sections.forEach(id => document.getElementById(id).classList.remove('disabled'));
   } else {
     el.className = 'status disconnected';
