@@ -65,7 +65,7 @@ app.post('/api/contacts', (req, res) => {
 
 app.post('/api/send', async (req, res) => {
   try {
-    const { contacts, subject, body } = req.body;
+    const { contacts, subject, body, attachment } = req.body;
     
     if (!process.env.SENDGRID_API_KEY || !process.env.FROM_EMAIL) {
       return res.status(400).json({ 
@@ -101,11 +101,11 @@ app.post('/api/send', async (req, res) => {
         ]
       };
 
-      if (contact.attachment) {
+      if (attachment) {
         msg.attachments = [{
-          content: contact.attachment.content,
-          filename: contact.attachment.filename,
-          type: contact.attachment.type || 'application/pdf',
+          content: attachment.content,
+          filename: attachment.filename,
+          type: attachment.type || 'application/pdf',
           disposition: 'attachment'
         }];
       }

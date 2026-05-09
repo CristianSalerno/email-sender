@@ -135,29 +135,46 @@ document.getElementById('email-form').addEventListener('submit', async (e) => {
     const reader = new FileReader();
     reader.onload = async function(evt) {
       const base64 = evt.target.result.split(',')[1];
-      selected.forEach(c => {
-        c.attachment = {
-          content: base64,
-          filename: file.name,
-          type: file.type
-        };
-      });
-      await sendEmails(body);
+      const attachment = {
+        content: base64,
+        filename: file.name,
+        type: file.type
+      };
+      const bodyData = {
+        subject: document.getElementById('subject').value,
+        body: document.getElementById('body').value,
+        attachment: attachment
+      };
+      await sendEmails(bodyData, selected);
     };
     reader.readAsDataURL(file);
   } else {
-    await sendEmails(body);
+    const bodyData = {
+      subject: document.getElementById('subject').value,
+      body: document.getElementById('body').value
+    };
+    await sendEmails(bodyData, selected);
   }
 });
 
-async function sendEmails(body) {
+async function sendEmails(body, contacts) {
   document.querySelector('.btn-large').textContent = 'Sending...';
   document.querySelector('.btn-large').disabled = true;
+
+  const payload = {
+    contacts: JSON.stringify(contacts),
+    subject: body.subject,
+    body: body.body
+  };
+
+  if (body.attachment) {
+    payload.attachment = body.attachment;
+  }
 
   const res = await fetch('/api/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(payload)
   });
   const data = await res.json();
 
