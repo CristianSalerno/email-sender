@@ -1,4 +1,5 @@
-let allEmails = [];
+let allContacts = [];
+let selectedAttachment = null;
 
 async function checkStatus() {
   try {
@@ -28,17 +29,10 @@ function updateStatus(data) {
     sections.forEach(id => document.getElementById(id).classList.remove('disabled'));
   } else {
     el.className = 'status disconnected';
-    el.textContent = '❌ Not configured - Set SENDGRID_API_KEY and FROM_EMAIL in Vercel';
+    el.textContent = '❌ Not configured';
     formContainer.classList.add('hidden');
     connectedMsg.classList.remove('hidden');
-    connectedMsg.innerHTML = `
-      <p>Configure environment variables in Vercel:</p>
-      <ul>
-        <li><strong>SENDGRID_API_KEY</strong>: Your SendGrid API key</li>
-        <li><strong>FROM_EMAIL</strong>: Verified sender email</li>
-      </ul>
-      <p><a href="https://vercel.com/docs/environment-variables" target="_blank">Vercel Docs: Environment Variables</a></p>
-    `;
+    connectedMsg.innerHTML = `<p>Configure SENDGRID_API_KEY and FROM_EMAIL in Vercel settings.</p>`;
     sections.forEach(id => document.getElementById(id).classList.add('disabled'));
   }
 }
@@ -75,12 +69,12 @@ async function handleFile(file) {
     const data = await res.json();
 
     if (data.success) {
-      allEmails = data.emails;
-      document.getElementById('file-info').innerHTML = `✅ ${data.emails.length} emails found`;
-      renderEmails();
+      allContacts = data.contacts;
+      document.getElementById('file-info').innerHTML = `✅ ${data.contacts.length} contacts found`;
+      renderContacts();
       document.getElementById('emails-section').classList.remove('hidden');
       document.getElementById('compose-section').classList.remove('hidden');
-      document.getElementById('total-count').textContent = data.emails.length;
+      document.getElementById('total-count').textContent = data.contacts.length;
     } else {
       alert('Error: ' + data.error);
     }
@@ -88,12 +82,16 @@ async function handleFile(file) {
   reader.readAsDataURL(file);
 }
 
-function renderEmails() {
+function renderContacts() {
   const list = document.getElementById('emails-list');
-  list.innerHTML = allEmails.map((email, i) => `
+  list.innerHTML = allContacts.map((contact, i) => `
     <div class="email-item">
-      <input type="checkbox" id="email-${i}" value="${email}" checked onchange="updateCount()">
-      <span>${email}</span>
+      <input type="checkbox" id="contact-${i}" value="${i}" checked onchange="updateCount()">
+      <div class="contact-info">
+        <strong>${contact.email}</strong>
+        ${contact.name ? `<span class="contact-name">${contact.name}</span>` : ''}
+        ${contact.company ? `<span class="contact-company">${contact.company}</span>` : ''}
+      </div>
     </div>
   `).join('');
   updateCount();
@@ -117,11 +115,13 @@ function deselectAll() {
 document.getElementById('email-form').addEventListener('submit', async (e) => {
   e.preventDefault();
 
-  const selected = Array.from(document.querySelectorAll('#emails-list input:checked')).map(cb => cb.value);
+  const selected = Array.from(document.querySelectorAll('#emails-list input:checked'))
+    .map(cb => allContacts[parseInt(cb.value)]);
+
   if (selected.length === 0) return alert('Select at least one recipient');
 
   const body = {
-    emails: JSON.stringify(selected),
+    contacts: JSON.stringify(selected),
     subject: document.getElementById('subject').value,
     body: document.getElementById('body').value
   };
@@ -135,11 +135,13 @@ document.getElementById('email-form').addEventListener('submit', async (e) => {
     const reader = new FileReader();
     reader.onload = async function(evt) {
       const base64 = evt.target.result.split(',')[1];
-      body.attachment = {
-        content: base64,
-        filename: file.name,
-        type: file.type
-      };
+      selected.forEach(c => {
+        c.attachment = {
+          content: base64,
+          filename: file.name,
+          type: file.type
+        };
+      });
       await sendEmails(body);
     };
     reader.readAsDataURL(file);
@@ -169,7 +171,7 @@ async function sendEmails(body) {
 
     resultsDiv.innerHTML = data.results.map(r => `
       <div class="result-item ${r.status}">
-        ${r.email}: ${r.status === 'sent' ? '✓ Sent' : '✗ Error: ' + r.error}
+        ${r.name ? r.name + ' - ' : ''}${r.email}: ${r.status === 'sent' ? '✓ Sent' : '✗ Error: ' + r.error}
       </div>
     `).join('');
 

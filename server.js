@@ -36,20 +36,28 @@ app.post('/api/disconnect', (req, res) => {
 app.post('/api/contacts', (req, res) => {
   try {
     const { content, filename } = req.body;
-    let emails = [];
+    let contacts = [];
     
     if (filename.endsWith('.txt')) {
       const text = Buffer.from(content, 'base64').toString('utf8');
-      emails = text.split(/[\n,;]/).map(e => e.trim()).filter(e => e.includes('@'));
+      const lines = text.split(/[\n,;]/);
+      contacts = lines.map(line => {
+        const parts = line.split(/[,;]/).map(p => p.trim());
+        return { email: parts[0] || '', name: parts[1] || '', company: parts[2] || '' };
+      }).filter(c => c.email.includes('@'));
     } else if (filename.match(/\.xlsx?$/)) {
       const buffer = Buffer.from(content, 'base64');
       const workbook = xlsx.read(buffer, { type: 'buffer' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const data = xlsx.utils.sheet_to_json(sheet);
-      emails = data.map(row => row.email || row.Email || row.EMAIL || Object.values(row)[0]).filter(Boolean);
+      contacts = data.map(row => ({
+        email: row.email || row.Email || row.EMAIL || Object.values(row)[0] || '',
+        name: row.name || row.Name || row.NAME || row.nombre || row.Nombre || '',
+        company: row.company || row.Company || row.COMPANY || row.empresa || row.Empresa || ''
+      })).filter(c => c.email.includes('@'));
     }
     
-    res.json({ success: true, emails });
+    res.json({ success: true, contacts });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -57,31 +65,44 @@ app.post('/api/contacts', (req, res) => {
 
 app.post('/api/send', async (req, res) => {
   try {
-    const { emails, subject, body, attachment } = req.body;
+    const { contacts, subject, body } = req.body;
     
     if (!process.env.SENDGRID_API_KEY || !process.env.FROM_EMAIL) {
       return res.status(400).json({ 
         success: false, 
-        error: 'SendGrid not configured. Set SENDGRID_API_KEY and FROM_EMAIL in Vercel.'
+        error: 'SendGrid not configured.'
       });
     }
 
-    const emailList = typeof emails === 'string' ? JSON.parse(emails) : emails;
+    const contactList = typeof contacts === 'string' ? JSON.parse(contacts) : contacts;
     const results = [];
 
-    for (const email of emailList) {
+    for (const contact of contactList) {
+      const personalizedBody = body
+        .replace(/\{\{email\}\}/gi, contact.email)
+        .replace(/\{\{name\}\}/gi, contact.name || '')
+        .replace(/\{\{company\}\}/gi, contact.company || '');
+      
+      const personalizedSubject = subject
+        .replace(/\{\{email\}\}/gi, contact.email)
+        .replace(/\{\{name\}\}/gi, contact.name || '')
+        .replace(/\{\{company\}\}/gi, contact.company || '');
+
       const msg = {
-        personalizations: [{ to: [{ email: email }] }],
+        personalizations: [{ 
+          to: [{ email: contact.email }],
+          subject: personalizedSubject
+        }],
         from: { email: process.env.FROM_EMAIL },
-        subject: subject,
-        content: [{ type: 'text/plain', value: body }]
+        subject: personalizedSubject,
+        content: [{ type: 'text/plain', value: personalizedBody }]
       };
 
-      if (attachment) {
+      if (contact.attachment) {
         msg.attachments = [{
-          content: attachment.content,
-          filename: attachment.filename,
-          type: attachment.type || 'application/pdf',
+          content: contact.attachment.content,
+          filename: contact.attachment.filename,
+          type: contact.attachment.type || 'application/pdf',
           disposition: 'attachment'
         }];
       }
@@ -97,13 +118,13 @@ app.post('/api/send', async (req, res) => {
         });
 
         if (response.ok || response.status === 202) {
-          results.push({ email, status: 'sent' });
+          results.push({ email: contact.email, name: contact.name, status: 'sent' });
         } else {
           const errorText = await response.text();
-          results.push({ email, status: 'failed', error: `Error ${response.status}: ${errorText}` });
+          results.push({ email: contact.email, name: contact.name, status: 'failed', error: `Error ${response.status}` });
         }
       } catch (err) {
-        results.push({ email, status: 'failed', error: err.message });
+        results.push({ email: contact.email, name: contact.name, status: 'failed', error: err.message });
       }
     }
 
