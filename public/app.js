@@ -1,25 +1,16 @@
 let allEmails = [];
 
 async function checkStatus() {
-  const res = await fetch('/api/status');
-  const data = await res.json();
-  
-  const stored = sessionStorage.getItem('emailSenderConfig');
-  if (stored && data.connected) {
-    const config = JSON.parse(stored);
-    document.getElementById('from-email').value = config.fromEmail;
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    updateStatus(data);
+  } catch (err) {
+    updateStatus({ connected: false });
   }
-  
-  updateStatus(data);
 }
 
 checkStatus();
-
-function disconnect() {
-  sessionStorage.removeItem('emailSenderConfig');
-  fetch('/api/disconnect', { method: 'POST' });
-  updateStatus({ connected: false });
-}
 
 function updateStatus(data) {
   const el = document.getElementById('connection-status');
@@ -35,33 +26,20 @@ function updateStatus(data) {
     sections.forEach(id => document.getElementById(id).classList.remove('disabled'));
   } else {
     el.className = 'status disconnected';
-    el.textContent = '❌ Not connected';
-    formContainer.classList.remove('hidden');
-    connectedMsg.classList.add('hidden');
+    el.textContent = '❌ Not configured - Set SENDGRID_API_KEY and FROM_EMAIL in Vercel';
+    formContainer.classList.add('hidden');
+    connectedMsg.classList.remove('hidden');
+    connectedMsg.innerHTML = `
+      <p>Configure environment variables in Vercel:</p>
+      <ul>
+        <li><strong>SENDGRID_API_KEY</strong>: Your SendGrid API key</li>
+        <li><strong>FROM_EMAIL</strong>: Verified sender email</li>
+      </ul>
+      <p><a href="https://vercel.com/docs/environment-variables" target="_blank">Vercel Docs: Environment Variables</a></p>
+    `;
     sections.forEach(id => document.getElementById(id).classList.add('disabled'));
   }
 }
-
-document.getElementById('config-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const apiKey = document.getElementById('api-key').value;
-  const fromEmail = document.getElementById('sender-email').value;
-
-  const res = await fetch('/api/configure', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ apiKey, fromEmail })
-  });
-  const data = await res.json();
-  if (data.success) {
-    sessionStorage.setItem('emailSenderConfig', JSON.stringify({ apiKey, fromEmail }));
-    updateStatus({ connected: true, email: fromEmail });
-    document.getElementById('from-email').value = fromEmail;
-  } else {
-    alert('❌ Error: ' + data.error);
-    updateStatus({ connected: false });
-  }
-});
 
 const uploadArea = document.getElementById('upload-area');
 const fileInput = document.getElementById('contacts-file');
@@ -80,25 +58,32 @@ fileInput.addEventListener('change', (e) => {
 });
 
 async function handleFile(file) {
-  const formData = new FormData();
-  formData.append('file', file);
-
   document.getElementById('file-info').innerHTML = '<div class="loading">Loading...</div>';
   document.getElementById('file-info').classList.remove('hidden');
 
-  const res = await fetch('/api/upload-contacts', { method: 'POST', body: formData });
-  const data = await res.json();
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const base64 = e.target.result.split(',')[1];
+    
+    const res = await fetch('/api/contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: base64, filename: file.name })
+    });
+    const data = await res.json();
 
-  if (data.success) {
-    allEmails = data.emails;
-    document.getElementById('file-info').innerHTML = `✅ ${data.emails.length} emails found`;
-    renderEmails();
-    document.getElementById('emails-section').classList.remove('hidden');
-    document.getElementById('compose-section').classList.remove('hidden');
-    document.getElementById('total-count').textContent = data.emails.length;
-  } else {
-    alert('Error: ' + data.error);
-  }
+    if (data.success) {
+      allEmails = data.emails;
+      document.getElementById('file-info').innerHTML = `✅ ${data.emails.length} emails found`;
+      renderEmails();
+      document.getElementById('emails-section').classList.remove('hidden');
+      document.getElementById('compose-section').classList.remove('hidden');
+      document.getElementById('total-count').textContent = data.emails.length;
+    } else {
+      alert('Error: ' + data.error);
+    }
+  };
+  reader.readAsDataURL(file);
 }
 
 function renderEmails() {
@@ -131,23 +116,42 @@ document.getElementById('email-form').addEventListener('submit', async (e) => {
   e.preventDefault();
 
   const selected = Array.from(document.querySelectorAll('#emails-list input:checked')).map(cb => cb.value);
-  if (selected.length === 0) return alert('Selecciona al menos un destinatario');
+  if (selected.length === 0) return alert('Select at least one recipient');
 
-  const formData = new FormData();
-  formData.append('emails', JSON.stringify(selected));
-  formData.append('subject', document.getElementById('subject').value);
-  formData.append('body', document.getElementById('body').value);
-  formData.append('fromEmail', document.getElementById('from-email').value);
+  const body = {
+    emails: JSON.stringify(selected),
+    subject: document.getElementById('subject').value,
+    body: document.getElementById('body').value
+  };
 
   const attachmentInput = document.getElementById('attachment');
   if (attachmentInput.files.length > 0) {
-    formData.append('attachment', attachmentInput.files[0]);
+    const file = attachmentInput.files[0];
+    const reader = new FileReader();
+    reader.onload = async function(evt) {
+      const base64 = evt.target.result.split(',')[1];
+      body.attachment = {
+        content: base64,
+        filename: file.name,
+        type: file.type
+      };
+      await sendEmails(body);
+    };
+    reader.readAsDataURL(file);
+  } else {
+    await sendEmails(body);
   }
+});
 
+async function sendEmails(body) {
   document.querySelector('.btn-large').textContent = 'Sending...';
   document.querySelector('.btn-large').disabled = true;
 
-  const res = await fetch('/api/send-emails', { method: 'POST', body: formData });
+  const res = await fetch('/api/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
   const data = await res.json();
 
   document.querySelector('.btn-large').textContent = '📤 Send Emails';
@@ -169,4 +173,4 @@ document.getElementById('email-form').addEventListener('submit', async (e) => {
   } else {
     alert('Error: ' + data.error);
   }
-});
+}
