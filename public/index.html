@@ -7,7 +7,11 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
+  <div id="loading-screen" class="loading-screen">
+    <div class="spinner"></div>
+    <p>Loading...</p>
+  </div>
+  <div class="container" id="main-content" style="display:none;">
     <header>
       <h1>📧 Email Sender</h1>
       <p>Send bulk emails with attachments to acquire clients</p>
@@ -89,5 +93,13 @@
   </div>
 
   <script src="app.js"></script>
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.getElementById('loading-screen').style.display = 'none';
+        document.getElementById('main-content').style.display = 'block';
+      }, 500);
+    });
+  </script>
 </body>
 </html>
