@@ -6,8 +6,8 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 
 const app = express();
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -57,7 +57,7 @@ app.post('/api/contacts', (req, res) => {
 
 app.post('/api/send', async (req, res) => {
   try {
-    const { emails, subject, body } = req.body;
+    const { emails, subject, body, attachment } = req.body;
     
     if (!process.env.SENDGRID_API_KEY || !process.env.FROM_EMAIL) {
       return res.status(400).json({ 
@@ -76,6 +76,15 @@ app.post('/api/send', async (req, res) => {
         subject: subject,
         content: [{ type: 'text/plain', value: body }]
       };
+
+      if (attachment) {
+        msg.attachments = [{
+          content: attachment.content,
+          filename: attachment.filename,
+          type: attachment.type || 'application/pdf',
+          disposition: 'attachment'
+        }];
+      }
 
       try {
         const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
