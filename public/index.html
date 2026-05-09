@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Sender - Client Outreach</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📧 Email Sender</h1>
+      <p>Send bulk emails with attachments to acquire clients</p>
+    </header>
+
+    <section class="card" id="config-section">
+      <div id="connection-status" class="status disconnected">❌ Not connected</div>
+      <div id="config-form-container">
+        <h2>1. Configure SendGrid</h2>
+        <form id="config-form">
+          <div class="form-group">
+            <label>SendGrid API Key:</label>
+            <input type="password" id="api-key" placeholder="SG.xxxxxxxx..." required>
+          </div>
+          <div class="form-group">
+            <label>Your email (verified sender):</label>
+            <input type="email" id="sender-email" placeholder="your@email.com" required>
+          </div>
+          <button type="submit" class="btn-primary">Save</button>
+        </form>
+      </div>
+      <div id="connected-message" class="hidden">
+        <h2>✅ Account configured</h2>
+        <p>You can now use the app to send emails</p>
+        <button type="button" class="btn-secondary" onclick="disconnect()">Disconnect</button>
+      </div>
+    </section>
+
+    <section class="card" id="upload-section">
+      <h2>2. Upload contacts</h2>
+      <div class="upload-area" id="upload-area">
+        <input type="file" id="contacts-file" accept=".xlsx,.xls,.txt" hidden>
+        <div class="upload-content">
+          <span class="icon">📁</span>
+          <p>Drag file here or click to select</p>
+          <small>Formats: Excel (.xlsx) or TXT with emails</small>
+        </div>
+      </div>
+      <div id="file-info" class="hidden"></div>
+    </section>
+
+    <section class="card disabled" id="emails-section">
+      <h2>3. Select recipients</h2>
+      <div class="toolbar">
+        <button class="btn-small" onclick="selectAll()">Select all</button>
+        <button class="btn-small" onclick="deselectAll()">Deselect all</button>
+      </div>
+      <div id="emails-list" class="emails-list"></div>
+      <div class="summary">Selected: <span id="selected-count">0</span> / <span id="total-count">0</span></div>
+    </section>
+
+    <section class="card disabled" id="compose-section">
+      <h2>4. Compose email</h2>
+      <form id="email-form">
+        <div class="form-group">
+          <label>From:</label>
+          <input type="email" id="from-email" readonly class="readonly">
+        </div>
+        <div class="form-group">
+          <label>Subject:</label>
+          <input type="text" id="subject" placeholder="Special offer for you!" required>
+        </div>
+        <div class="form-group">
+          <label>Message:</label>
+          <textarea id="body" rows="6" placeholder="Write your message here..." required></textarea>
+        </div>
+        <div class="form-group">
+          <label>Attachment (optional):</label>
+          <input type="file" id="attachment" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+        </div>
+        <button type="submit" class="btn-primary btn-large">📤 Send Emails</button>
+      </form>
+    </section>
+
+    <section class="card hidden" id="results-section">
+      <h2>5. Results</h2>
+      <div id="results"></div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; }
+header { text-align: center; color: white; margin-bottom: 30px; }
+header h1 { font-size: 2.5rem; margin-bottom: 10px; }
+.card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+.card h2 { color: #333; margin-bottom: 20px; font-size: 1.3rem; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; margin-bottom: 6px; font-weight: 600; color: #444; }
+.form-group input, .form-group textarea { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1rem; transition: border-color 0.3s; }
+.form-group input:focus, .form-group textarea:focus { outline: none; border-color: #667eea; }
+.form-group small { color: #666; font-size: 0.85rem; }
+.form-group a { color: #667eea; }
+.btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 14px 28px; border-radius: 8px; font-size: 1rem; cursor: pointer; width: 100%; font-weight: 600; transition: transform 0.2s, box-shadow 0.2s; }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4); }
+.btn-large { padding: 18px 36px; font-size: 1.1rem; }
+.btn-small { background: #f0f0f0; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-right: 10px; font-size: 0.9rem; }
+.btn-small:hover { background: #e0e0e0; }
+.upload-area { border: 3px dashed #ccc; border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s; }
+.upload-area:hover { border-color: #667eea; background: #f9f9ff; }
+.upload-content .icon { font-size: 3rem; display: block; margin-bottom: 10px; }
+.upload-content p { color: #555; margin-bottom: 8px; }
+.upload-content small { color: #888; }
+#file-info { margin-top: 16px; padding: 12px; background: #e8f5e9; border-radius: 8px; color: #2e7d32; }
+.emails-list { max-height: 300px; overflow-y: auto; border: 2px solid #e0e0e0; border-radius: 8px; padding: 10px; }
+.email-item { display: flex; align-items: center; padding: 10px; border-bottom: 1px solid #f0f0f0; }
+.email-item:last-child { border-bottom: none; }
+.email-item input { margin-right: 12px; width: 18px; height: 18px; }
+.email-item span { color: #555; }
+.summary { margin-top: 12px; font-weight: 600; color: #333; text-align: right; }
+.hidden { display: none; }
+#results { padding: 16px; background: #f5f5f5; border-radius: 8px; max-height: 200px; overflow-y: auto; }
+.result-item { padding: 8px; margin-bottom: 6px; border-radius: 4px; }
+.result-item.sent { background: #e8f5e9; color: #2e7d32; }
+.result-item.failed { background: #ffebee; color: #c62828; }
+.loading { text-align: center; padding: 20px; color: #666; }
+.status { padding: 10px 16px; border-radius: 8px; font-weight: 600; margin-bottom: 16px; text-align: center; }
+.status.connected { background: #e8f5e9; color: #2e7d32; }
+.status.disconnected { background: #ffebee; color: #c62828; }
+.disabled { opacity: 0.5; pointer-events: none; }
+.btn-secondary { background: #666; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin-top: 10px; }
+.btn-secondary:hover { background: #555; }
+.readonly { background: #f0f0f0; cursor: not-allowed; }
