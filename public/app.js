@@ -133,8 +133,6 @@ document.getElementById('email-form').addEventListener('submit', async (e) => {
       return alert('El archivo es muy grande. Máximo 4MB.');
     }
     const reader = new FileReader();
-    const file = attachmentInput.files[0];
-    const reader = new FileReader();
     reader.onload = async function(evt) {
       const base64 = evt.target.result.split(',')[1];
       body.attachment = {
