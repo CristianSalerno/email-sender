@@ -280,6 +280,26 @@ api.get('/contact-files', async (req, res) => {
   }
 });
 
+api.patch('/categories/:id', async (req, res) => {
+  try {
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ success: false, error: 'Database not configured' });
+    const name = String((req.body && req.body.name) || '').trim();
+    if (!name) return res.status(400).json({ success: false, error: 'Name required' });
+    const { id } = req.params;
+    const { data: taken } = await supabase.from('categories').select('id').eq('name', name).neq('id', id).maybeSingle();
+    if (taken) {
+      return res.status(400).json({ success: false, error: 'A category with this name already exists' });
+    }
+    const { data, error } = await supabase.from('categories').update({ name }).eq('id', id).select('id,name').single();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'Category not found' });
+    res.json({ success: true, category: data });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 api.get('/contacts', async (req, res) => {
   try {
     const supabase = getSupabase();
@@ -288,13 +308,65 @@ api.get('/contacts', async (req, res) => {
     if (!categoryId) {
       return res.status(400).json({ success: false, error: 'categoryId required' });
     }
+    const includeSendStatus =
+      req.query.includeSendStatus === '1' || req.query.includeSendStatus === 'true';
     const { data, error } = await supabase
       .from('contacts')
       .select('id,email,name,company,contact_file_id,created_at')
       .eq('category_id', categoryId)
       .order('email');
     if (error) throw error;
-    res.json({ success: true, contacts: data || [] });
+    const rows = data || [];
+    if (!includeSendStatus) {
+      return res.json({ success: true, contacts: rows });
+    }
+    const ids = rows.map((c) => c.id).filter(Boolean);
+    if (!ids.length) {
+      return res.json({
+        success: true,
+        contacts: rows.map((c) => ({ ...c, sendLabel: '—', sendStatus: 'none' }))
+      });
+    }
+    const { data: evs, error: evErr } = await supabase
+      .from('email_events')
+      .select('contact_id,status,updated_at,opened_at')
+      .in('contact_id', ids)
+      .order('updated_at', { ascending: false });
+    if (evErr) throw evErr;
+    const latest = {};
+    for (const ev of evs || []) {
+      if (!ev.contact_id) continue;
+      if (!latest[ev.contact_id]) latest[ev.contact_id] = ev;
+    }
+    const contacts = rows.map((c) => {
+      const ev = latest[c.id];
+      if (!ev) {
+        return { ...c, sendLabel: 'Never sent', sendStatus: 'never' };
+      }
+      let sendLabel = 'Sent';
+      let sendStatus = 'sent';
+      if (ev.opened_at) {
+        sendLabel = 'Opened';
+        sendStatus = 'opened';
+      } else if (['failed', 'bounce', 'dropped', 'deferred'].includes(ev.status)) {
+        sendLabel = 'Failed';
+        sendStatus = 'failed';
+      } else if (ev.status === 'sent' || ev.status === 'delivered' || ev.status === 'processed') {
+        sendLabel = 'Sent';
+        sendStatus = 'sent';
+      } else {
+        sendLabel = ev.status || 'Sent';
+        sendStatus = ev.status || 'sent';
+      }
+      return {
+        ...c,
+        sendLabel,
+        sendStatus,
+        lastEventAt: ev.updated_at,
+        openedAt: ev.opened_at || null
+      };
+    });
+    res.json({ success: true, contacts });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
