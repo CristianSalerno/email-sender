@@ -811,7 +811,7 @@ function renderCampaignHistory() {
         '</td><td>' +
         escapeHtml(categoryName) +
         '</td><td>' +
-        escapeHtml(when) +
+        when +
         '</td><td>' +
         (c.totalRecipients ?? 0) +
         '</td><td>' +
