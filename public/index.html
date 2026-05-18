@@ -108,13 +108,22 @@
 
         <hr class="section-divider">
 
-        <div class="form-group">
-          <label for="manual-emails">Add emails manually</label>
-          <textarea id="manual-emails" rows="4" placeholder="one@example.com, two@example.com&#10;three@example.com"></textarea>
-          <p class="muted small">You can paste multiple emails separated by spaces, commas, semicolons, or new lines.</p>
+        <div class="manual-contact-grid">
+          <div class="form-group">
+            <label for="manual-name">Name</label>
+            <input type="text" id="manual-name" placeholder="Jane Doe" autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label for="manual-company">Company</label>
+            <input type="text" id="manual-company" placeholder="Acme Inc" autocomplete="organization">
+          </div>
+          <div class="form-group">
+            <label for="manual-email">Email</label>
+            <input type="email" id="manual-email" placeholder="jane@acme.com" autocomplete="email">
+          </div>
           <p id="manual-emails-error" class="field-error hidden" role="alert"></p>
         </div>
-        <button type="button" class="btn btn-secondary btn-sm" id="btn-add-manual-emails">Add emails to category</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-add-manual-emails">Add contacts to category</button>
       </section>
 
       <section class="card hidden" id="manage-categories-section">

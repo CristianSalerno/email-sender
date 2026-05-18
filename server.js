@@ -26,6 +26,10 @@ function sanitizeFilename(name) {
   return base.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 180) || 'file';
 }
 
+function isValidEmail(email) {
+  return /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(String(email || '').trim());
+}
+
 function parseContactsFromBuffer(filename, buffer) {
   let contacts = [];
   if (filename.endsWith('.txt')) {
@@ -36,7 +40,7 @@ function parseContactsFromBuffer(filename, buffer) {
         const parts = line.split(/[,;]/).map((p) => p.trim());
         return { email: parts[0] || '', name: parts[1] || '', company: parts[2] || '' };
       })
-      .filter((c) => c.email.includes('@'));
+      .filter((c) => isValidEmail(c.email));
   } else if (filename.match(/\.xlsx?$/)) {
     const workbook = xlsx.read(buffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -47,23 +51,132 @@ function parseContactsFromBuffer(filename, buffer) {
         name: row.name || row.Name || row.NAME || row.nombre || row.Nombre || '',
         company: row.company || row.Company || row.COMPANY || row.empresa || row.Empresa || ''
       }))
-      .filter((c) => c.email.includes('@'));
+      .filter((c) => isValidEmail(c.email));
   }
   return contacts;
 }
 
 function parseManualContacts(input) {
-  const text = String(input || '');
-  const matches = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
+  const lines = String(input || '')
+    .split(/\r?\n/)
+    .map((line, idx) => ({ raw: line.trim(), line: idx + 1 }))
+    .filter((item) => item.raw);
+  const errors = [];
+  const contacts = [];
   const seen = new Set();
-  return matches
-    .map((email) => email.toLowerCase().trim())
-    .filter((email) => {
-      if (!email || seen.has(email)) return false;
-      seen.add(email);
-      return true;
-    })
-    .map((email) => ({ email, name: '', company: '' }));
+  let header = null;
+  let duplicateCount = 0;
+
+  function splitLine(raw) {
+    return raw
+      .split(/[,\t;]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+
+  if (lines.length) {
+    const first = splitLine(lines[0].raw).map((part) => part.toLowerCase());
+    const hasHeader =
+      first.includes('email') &&
+      (first.includes('name') || first.includes('nombre')) &&
+      (first.includes('company') || first.includes('empresa'));
+    if (hasHeader) {
+      header = {
+        email: first.indexOf('email'),
+        name: first.includes('name') ? first.indexOf('name') : first.indexOf('nombre'),
+        company: first.includes('company') ? first.indexOf('company') : first.indexOf('empresa')
+      };
+      lines.shift();
+    }
+  }
+
+  for (const item of lines) {
+    const parts = splitLine(item.raw);
+    if (parts.length < 3) {
+      errors.push(`Line ${item.line}: use name, company, email`);
+      continue;
+    }
+
+    let email = '';
+    let name = '';
+    let company = '';
+
+    if (header) {
+      email = parts[header.email] || '';
+      name = parts[header.name] || '';
+      company = parts[header.company] || '';
+    } else {
+      const emailIndex = parts.findIndex((part) => isValidEmail(part));
+      if (emailIndex === -1) {
+        errors.push(`Line ${item.line}: invalid email`);
+        continue;
+      }
+      email = parts[emailIndex];
+      if (emailIndex === 0) {
+        name = parts[1] || '';
+        company = parts.slice(2).join(' ');
+      } else if (emailIndex === 1) {
+        name = parts[0] || '';
+        company = parts.slice(2).join(' ');
+      } else {
+        name = parts[0] || '';
+        company = parts[1] || '';
+      }
+    }
+
+    email = email.toLowerCase().trim();
+    name = String(name || '').trim();
+    company = String(company || '').trim();
+
+    if (!name || !company || !email) {
+      errors.push(`Line ${item.line}: name, company, and email are required`);
+      continue;
+    }
+    if (!isValidEmail(email)) {
+      errors.push(`Line ${item.line}: invalid email`);
+      continue;
+    }
+    if (seen.has(email)) {
+      duplicateCount++;
+      continue;
+    }
+    seen.add(email);
+    contacts.push({ email, name, company });
+  }
+
+  return { contacts, errors, duplicateCount };
+}
+
+function parseManualContactObjects(input) {
+  const rows = Array.isArray(input) ? input : input ? [input] : [];
+  const errors = [];
+  const contacts = [];
+  const seen = new Set();
+  let duplicateCount = 0;
+
+  rows.forEach((row, idx) => {
+    const line = idx + 1;
+    const name = String((row && row.name) || '').trim();
+    const company = String((row && row.company) || '').trim();
+    const email = String((row && row.email) || '').toLowerCase().trim();
+
+    if (!name || !company || !email) {
+      errors.push(`Contact ${line}: name, company, and email are required`);
+      return;
+    }
+    if (!isValidEmail(email)) {
+      errors.push(`Contact ${line}: invalid email`);
+      return;
+    }
+    if (seen.has(email)) {
+      duplicateCount++;
+      return;
+    }
+    seen.add(email);
+    contacts.push({ name, company, email });
+  });
+
+  return { contacts, errors, duplicateCount };
 }
 
 function normalizeSgMessageId(id) {
@@ -362,6 +475,37 @@ api.get('/contact-files', async (req, res) => {
   }
 });
 
+api.delete('/contact-files/:id', async (req, res) => {
+  try {
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ success: false, error: 'Database not configured' });
+
+    const { id } = req.params;
+    const { data: fileRow, error: findErr } = await supabase
+      .from('contact_files')
+      .select('id,storage_path,original_filename')
+      .eq('id', id)
+      .maybeSingle();
+    if (findErr) throw findErr;
+    if (!fileRow) return res.status(404).json({ success: false, error: 'File not found' });
+
+    const bucket = process.env.SUPABASE_STORAGE_BUCKET;
+    if (bucket && fileRow.storage_path && !fileRow.storage_path.includes('/manual_')) {
+      const { error: storageErr } = await supabase.storage.from(bucket).remove([fileRow.storage_path]);
+      if (storageErr) {
+        return res.status(500).json({ success: false, error: storageErr.message });
+      }
+    }
+
+    const { error: delErr } = await supabase.from('contact_files').delete().eq('id', id);
+    if (delErr) throw delErr;
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 api.patch('/categories/:id', async (req, res) => {
   try {
     const supabase = getSupabase();
@@ -520,14 +664,30 @@ api.get('/campaigns/:id/status', async (req, res) => {
 
 api.post('/contacts/manual', async (req, res) => {
   try {
-    const contacts = parseManualContacts(req.body && req.body.emails);
+    const body = req.body || {};
+    const objectInput =
+      body.contacts ||
+      body.contact ||
+      (body.name || body.company || body.email
+        ? { name: body.name, company: body.company, email: body.email }
+        : null);
+    const parsed = objectInput
+      ? parseManualContactObjects(objectInput)
+      : parseManualContacts(body.contactsText || body.emails);
+    const { contacts } = parsed;
+    if (parsed.errors.length) {
+      return res.status(400).json({
+        success: false,
+        error: parsed.errors.slice(0, 5).join('; ')
+      });
+    }
     if (!contacts.length) {
-      return res.status(400).json({ success: false, error: 'Enter at least one valid email address' });
+      return res.status(400).json({ success: false, error: 'Enter at least one complete contact' });
     }
 
     const supabase = getSupabase();
     if (!supabase) {
-      return res.json({ success: true, contacts, persisted: false, skippedExisting: 0 });
+      return res.json({ success: true, contacts, persisted: false, skippedExisting: 0, skippedDuplicate: parsed.duplicateCount });
     }
 
     const category = await ensureCategory(supabase, {
@@ -564,9 +724,7 @@ api.post('/contacts/manual', async (req, res) => {
       fileRow = data;
     }
 
-    const rowsToInsert = newContacts
-      .filter((c) => !existing.has(c.email))
-      .map((c) => ({
+    const rowsToInsert = newContacts.map((c) => ({
         category_id: category.id,
         contact_file_id: fileRow.id,
         email: c.email,
@@ -593,7 +751,8 @@ api.post('/contacts/manual', async (req, res) => {
       category,
       persisted: true,
       added: rowsToInsert.length,
-      skippedExisting: existing.size
+      skippedExisting: existing.size,
+      skippedDuplicate: parsed.duplicateCount
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

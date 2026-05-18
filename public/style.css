@@ -160,6 +160,16 @@ input:focus, textarea:focus, select:focus {
   border-top: 1px solid var(--border);
   margin: 18px 0;
 }
+.manual-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.manual-contact-grid .field-error {
+  grid-column: 1 / -1;
+  margin-top: -6px;
+}
 
 .btn {
   display: inline-flex;
@@ -321,6 +331,15 @@ input:focus, textarea:focus, select:focus {
   font-family: inherit;
 }
 .link-btn:hover { text-decoration: underline; }
+.link-danger { color: var(--danger); }
+
+.file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 6px 0;
+}
 
 .summary {
   margin-top: 12px;
@@ -442,7 +461,13 @@ input:focus, textarea:focus, select:focus {
   border-radius: var(--radius);
   padding: 0;
   box-shadow: 0 25px 50px rgba(15, 23, 42, 0.25);
+  width: min(400px, 94vw);
   max-width: min(400px, 94vw);
+}
+.modal[open] {
+  position: fixed;
+  inset: 0;
+  margin: auto;
 }
 .modal::backdrop { background: rgba(15, 23, 42, 0.45); }
 .modal-inner { padding: 24px; }
@@ -457,4 +482,5 @@ input:focus, textarea:focus, select:focus {
 @media (max-width: 640px) {
   body { padding: 16px 12px; }
   .card { padding: 18px; }
+  .manual-contact-grid { grid-template-columns: 1fr; }
 }

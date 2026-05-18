@@ -437,10 +437,19 @@ function runImport() {
 
 async function addManualEmails() {
   clearImportErrors();
-  const raw = document.getElementById('manual-emails').value.trim();
+  const name = document.getElementById('manual-name').value.trim();
+  const company = document.getElementById('manual-company').value.trim();
+  const email = document.getElementById('manual-email').value.trim().toLowerCase();
   const err = document.getElementById('manual-emails-error');
-  if (!raw) {
-    err.textContent = 'Paste at least one email address.';
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  if (!name || !company || !email) {
+    err.textContent = 'Name, company, and email are required.';
+    err.classList.remove('hidden');
+    return;
+  }
+  if (!emailOk) {
+    err.textContent = 'Enter a valid email address.';
     err.classList.remove('hidden');
     return;
   }
@@ -469,7 +478,12 @@ async function addManualEmails() {
   const res = await api('/api/contacts/manual', {
     method: 'POST',
     body: JSON.stringify({
-      emails: raw,
+      contacts: [{ name: name, company: company, email: email }],
+      contact: { name: name, company: company, email: email },
+      name: name,
+      company: company,
+      email: email,
+      contactsText: name + ', ' + company + ', ' + email,
       categoryId: categoryId || undefined,
       categoryName: categoryName || undefined
     })
@@ -479,7 +493,7 @@ async function addManualEmails() {
   });
 
   btn.disabled = false;
-  btn.textContent = 'Add emails to category';
+  btn.textContent = 'Add contacts to category';
 
   if (res.status === 401) {
     showApp(false);
@@ -493,7 +507,10 @@ async function addManualEmails() {
     return;
   }
 
-  document.getElementById('manual-emails').value = '';
+  document.getElementById('manual-name').value = '';
+  document.getElementById('manual-company').value = '';
+  document.getElementById('manual-email').value = '';
+  document.getElementById('manual-name').focus();
 
   if (data.persisted && data.category && data.category.id) {
     await loadCategories();
@@ -524,7 +541,14 @@ async function addManualEmails() {
 
   const added = data.added ?? (data.contacts || []).length;
   const skipped = data.skippedExisting || 0;
-  showToast('Added: ' + added + (skipped ? ' · Already existed: ' + skipped : ''), 'success');
+  const duplicate = data.skippedDuplicate || 0;
+  showToast(
+    'Added: ' +
+      added +
+      (skipped ? ' · Already existed: ' + skipped : '') +
+      (duplicate ? ' · Duplicated in paste: ' + duplicate : ''),
+    'success'
+  );
 }
 
 document.getElementById('refresh-files-btn').addEventListener('click', refreshFilesList);
@@ -549,15 +573,52 @@ async function refreshFilesList() {
     data.files
       .map(function (f) {
         return (
-          '<li>' +
+          '<li class="file-row">' +
+          '<span>' +
           escapeHtml(f.original_filename) +
           ' — <span class="muted">' +
           new Date(f.created_at).toLocaleString() +
-          '</span></li>'
+          '</span></span>' +
+          '<button type="button" class="link-btn link-danger" data-delete-file="' +
+          escapeHtml(f.id) +
+          '" data-file-name="' +
+          escapeHtml(f.original_filename) +
+          '">Delete</button></li>'
         );
       })
       .join('') +
     '</ul>';
+
+  box.querySelectorAll('[data-delete-file]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      deleteContactFile(btn.getAttribute('data-delete-file'), btn.getAttribute('data-file-name') || 'this file');
+    });
+  });
+}
+
+async function deleteContactFile(id, name) {
+  if (!id) return;
+  const ok = window.confirm('Delete "' + name + '" and all contacts imported from it?');
+  if (!ok) return;
+
+  const res = await api('/api/contact-files/' + encodeURIComponent(id), {
+    method: 'DELETE',
+    body: JSON.stringify({})
+  });
+  const data = await res.json().catch(function () {
+    return {};
+  });
+
+  if (!data.success) {
+    showToast(data.error || 'Could not delete file', 'error');
+    return;
+  }
+
+  showToast('File deleted', 'success');
+  await refreshFilesList();
+  if (getSelectedCategoryId()) {
+    await loadContactsFromDatabase(false);
+  }
 }
 
 document.getElementById('btn-refresh-recipients').addEventListener('click', function () {
