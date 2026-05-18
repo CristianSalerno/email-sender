@@ -212,6 +212,15 @@ app.get('/api/session', (req, res) => {
   }
 });
 
+app.get('/api/sendgrid/events', (req, res) => {
+  res
+    .status(200)
+    .type('text/plain')
+    .send(
+      'SendGrid Event Webhook endpoint: configure POST to this URL. Browser GET is only for a quick check; SendGrid uses HTTP POST with a JSON body.'
+    );
+});
+
 app.post('/api/sendgrid/events', async (req, res) => {
   try {
     const supabase = getSupabase();
