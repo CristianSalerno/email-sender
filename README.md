@@ -2,6 +2,8 @@
 
 App para enviar emails masivos con adjuntos, con opción de guardar listas por categoría en Supabase y seguimiento de aperturas vía SendGrid.
 
+**Guía para clonar y desplegar desde otro ordenador:** [`GUIA_DESDE_OTRO_EQUIPO.md`](GUIA_DESDE_OTRO_EQUIPO.md).
+
 ## Installation
 
 ```bash
