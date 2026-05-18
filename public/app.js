@@ -768,11 +768,7 @@ async function loadCampaignHistory() {
   if (!hasDatabase) return;
   const tbody = document.getElementById('campaigns-tbody');
   if (!tbody) return;
-  const cat = getSelectedCategoryId();
   let url = '/api/campaigns?limit=50';
-  if (cat) {
-    url += '&categoryId=' + encodeURIComponent(cat);
-  }
   const res = await api(url);
   const data = await res.json();
   if (!data.success) {
@@ -795,17 +791,25 @@ function renderCampaignHistory() {
   if (empty) empty.classList.add('hidden');
   tbody.innerHTML = campaignsCache
     .map(function (c) {
-      const when = c.created_at ? new Date(c.created_at).toLocaleString() : '—';
+      const when = c.created_at ? formatCampaignSentDay(c.created_at) : '—';
+      const category = categories.find(function (cat) {
+        return cat.id === c.category_id;
+      });
+      const categoryName = category ? category.name : c.category_id ? 'Deleted category' : '—';
       const raw = c.subject || '';
       const subj = raw.length
         ? escapeHtml(raw.length > 80 ? raw.slice(0, 80) + '…' : raw)
         : '—';
+      const shortId = c.id ? String(c.id).slice(0, 8) : '';
       return (
         '<tr class="campaign-row" data-campaign-id="' +
         escapeHtml(c.id) +
         '">' +
         '<td>' +
         subj +
+        (shortId ? '<br><span class="muted small">#' + escapeHtml(shortId) + '</span>' : '') +
+        '</td><td>' +
+        escapeHtml(categoryName) +
         '</td><td>' +
         escapeHtml(when) +
         '</td><td>' +
@@ -834,6 +838,25 @@ function renderCampaignHistory() {
       refreshCampaignTracking();
     });
   });
+}
+
+function formatCampaignSentDay(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return (
+    date.toLocaleDateString(undefined, {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    }) +
+    '<br><span class="muted small">' +
+    date.toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit'
+    }) +
+    '</span>'
+  );
 }
 
 function badgeClass(st) {
