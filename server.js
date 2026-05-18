@@ -682,6 +682,29 @@ api.get('/campaigns', async (req, res) => {
   }
 });
 
+api.delete('/campaigns/:id', async (req, res) => {
+  try {
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ success: false, error: 'Database not configured' });
+    const { id } = req.params;
+
+    const { data: campaign, error: findErr } = await supabase
+      .from('campaigns')
+      .select('id,subject')
+      .eq('id', id)
+      .maybeSingle();
+    if (findErr) throw findErr;
+    if (!campaign) return res.status(404).json({ success: false, error: 'Campaign not found' });
+
+    const { error: delErr } = await supabase.from('campaigns').delete().eq('id', id);
+    if (delErr) throw delErr;
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 api.get('/campaigns/:id/status', async (req, res) => {
   try {
     const supabase = getSupabase();

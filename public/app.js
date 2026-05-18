@@ -816,10 +816,26 @@ function renderCampaignHistory() {
         (c.totalRecipients ?? 0) +
         '</td><td>' +
         (c.openedCount ?? 0) +
+        '</td><td class="col-actions">' +
+        '<button type="button" class="link-btn link-danger" data-delete-campaign="' +
+        escapeHtml(c.id) +
+        '" data-campaign-subject="' +
+        escapeHtml(raw || 'Untitled campaign') +
+        '">Delete</button>' +
         '</td></tr>'
       );
     })
     .join('');
+
+  tbody.querySelectorAll('[data-delete-campaign]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      deleteCampaign(
+        btn.getAttribute('data-delete-campaign'),
+        btn.getAttribute('data-campaign-subject') || 'this campaign'
+      );
+    });
+  });
 
   tbody.querySelectorAll('.campaign-row').forEach(function (row) {
     row.addEventListener('click', function () {
@@ -838,6 +854,41 @@ function renderCampaignHistory() {
       refreshCampaignTracking();
     });
   });
+}
+
+async function deleteCampaign(id, subject) {
+  if (!id) return;
+  const ok = window.confirm('Delete campaign "' + subject + '" and its tracking events?');
+  if (!ok) return;
+
+  const res = await api('/api/campaigns/' + encodeURIComponent(id), {
+    method: 'DELETE',
+    body: JSON.stringify({})
+  });
+  const data = await res.json().catch(function () {
+    return {};
+  });
+
+  if (!data.success) {
+    showToast(data.error || 'Could not delete campaign', 'error');
+    return;
+  }
+
+  if (lastCampaignId === id) {
+    lastCampaignId = null;
+    try {
+      sessionStorage.removeItem(LAST_CAMPAIGN_STORAGE);
+    } catch (_) {}
+    document.getElementById('tracking-panel').classList.add('hidden');
+    document.getElementById('results-meta').innerHTML = '';
+    document.getElementById('results').innerHTML = '';
+  }
+
+  campaignsCache = campaignsCache.filter(function (campaign) {
+    return campaign.id !== id;
+  });
+  renderCampaignHistory();
+  showToast('Campaign deleted', 'success');
 }
 
 function formatCampaignSentDay(value) {
