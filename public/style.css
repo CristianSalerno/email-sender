@@ -155,6 +155,11 @@ input:focus, textarea:focus, select:focus {
   font-size: 0.9rem;
   margin-bottom: 12px;
 }
+.section-divider {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 18px 0;
+}
 
 .btn {
   display: inline-flex;

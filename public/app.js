@@ -62,7 +62,7 @@ function syncImportModeUI() {
 }
 
 function clearImportErrors() {
-  ['category-select-error', 'new-category-error', 'file-error', 'import-global-error'].forEach(function (id) {
+  ['category-select-error', 'new-category-error', 'file-error', 'import-global-error', 'manual-emails-error'].forEach(function (id) {
     const n = document.getElementById(id);
     if (n) {
       n.textContent = '';
@@ -359,6 +359,7 @@ document.getElementById('category-select').addEventListener('change', function (
 });
 
 document.getElementById('btn-import').addEventListener('click', runImport);
+document.getElementById('btn-add-manual-emails').addEventListener('click', addManualEmails);
 
 function runImport() {
   if (!validateImport()) return;
@@ -432,6 +433,98 @@ function runImport() {
     }
   };
   reader.readAsDataURL(file);
+}
+
+async function addManualEmails() {
+  clearImportErrors();
+  const raw = document.getElementById('manual-emails').value.trim();
+  const err = document.getElementById('manual-emails-error');
+  if (!raw) {
+    err.textContent = 'Paste at least one email address.';
+    err.classList.remove('hidden');
+    return;
+  }
+
+  const mode = getImportMode();
+  const categoryId = mode === 'existing' ? getSelectedCategoryId() : '';
+  const categoryName = mode === 'new' ? document.getElementById('new-category-name').value.trim() : '';
+
+  if (hasDatabase && mode === 'existing' && !categoryId) {
+    const e = document.getElementById('category-select-error');
+    e.textContent = 'Please select a category.';
+    e.classList.remove('hidden');
+    return;
+  }
+  if (hasDatabase && mode === 'new' && !categoryName) {
+    const e = document.getElementById('new-category-error');
+    e.textContent = 'Enter a name for the new category.';
+    e.classList.remove('hidden');
+    return;
+  }
+
+  const btn = document.getElementById('btn-add-manual-emails');
+  btn.disabled = true;
+  btn.textContent = 'Adding…';
+
+  const res = await api('/api/contacts/manual', {
+    method: 'POST',
+    body: JSON.stringify({
+      emails: raw,
+      categoryId: categoryId || undefined,
+      categoryName: categoryName || undefined
+    })
+  });
+  const data = await res.json().catch(function () {
+    return {};
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'Add emails to category';
+
+  if (res.status === 401) {
+    showApp(false);
+    return;
+  }
+
+  if (!data.success) {
+    err.textContent = data.error || 'Could not add emails.';
+    err.classList.remove('hidden');
+    showToast(data.error || 'Could not add emails', 'error');
+    return;
+  }
+
+  document.getElementById('manual-emails').value = '';
+
+  if (data.persisted && data.category && data.category.id) {
+    await loadCategories();
+    document.getElementById('category-select').value = data.category.id;
+    document.querySelector('input[name="import-mode"][value="existing"]').checked = true;
+    syncImportModeUI();
+    document.getElementById('new-category-name').value = '';
+    await refreshFilesList();
+    await loadContactsFromDatabase(false);
+  } else {
+    allContacts = (data.contacts || []).map(function (c) {
+      return {
+        id: c.id || null,
+        email: c.email,
+        name: c.name || '',
+        company: c.company || '',
+        sendLabel: c.id ? 'Never sent' : '—',
+        sendStatus: c.id ? 'never' : 'none',
+        lastEventAt: null,
+        openedAt: null
+      };
+    });
+    renderRecipientsTable();
+    document.getElementById('recipients-section').classList.remove('hidden');
+    document.getElementById('compose-section').classList.remove('hidden');
+    document.getElementById('total-count').textContent = allContacts.length;
+  }
+
+  const added = data.added ?? (data.contacts || []).length;
+  const skipped = data.skippedExisting || 0;
+  showToast('Added: ' + added + (skipped ? ' · Already existed: ' + skipped : ''), 'success');
 }
 
 document.getElementById('refresh-files-btn').addEventListener('click', refreshFilesList);

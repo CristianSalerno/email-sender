@@ -58,8 +58,8 @@
       </section>
 
       <section class="card" id="import-section">
-        <h2 class="card-title">1. Category and file</h2>
-        <p class="muted">New categories are created only when you <strong>import an Excel or TXT file</strong> with contacts. You cannot save an empty category.</p>
+        <h2 class="card-title">1. Category and contacts</h2>
+        <p class="muted">Create or choose a category, then import an Excel/TXT file or paste emails manually.</p>
 
         <div class="segmented" role="radiogroup" aria-label="Category type">
           <label class="segmented-item">
@@ -105,6 +105,16 @@
         </div>
         <div id="file-info" class="info-box hidden"></div>
         <div id="files-list" class="files-box muted hidden"></div>
+
+        <hr class="section-divider">
+
+        <div class="form-group">
+          <label for="manual-emails">Add emails manually</label>
+          <textarea id="manual-emails" rows="4" placeholder="one@example.com, two@example.com&#10;three@example.com"></textarea>
+          <p class="muted small">You can paste multiple emails separated by spaces, commas, semicolons, or new lines.</p>
+          <p id="manual-emails-error" class="field-error hidden" role="alert"></p>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-add-manual-emails">Add emails to category</button>
       </section>
 
       <section class="card hidden" id="manage-categories-section">

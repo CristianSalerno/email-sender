@@ -52,6 +52,20 @@ function parseContactsFromBuffer(filename, buffer) {
   return contacts;
 }
 
+function parseManualContacts(input) {
+  const text = String(input || '');
+  const matches = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
+  const seen = new Set();
+  return matches
+    .map((email) => email.toLowerCase().trim())
+    .filter((email) => {
+      if (!email || seen.has(email)) return false;
+      seen.add(email);
+      return true;
+    })
+    .map((email) => ({ email, name: '', company: '' }));
+}
+
 function normalizeSgMessageId(id) {
   if (!id) return null;
   return String(id).replace(/[<>]/g, '').trim();
@@ -501,6 +515,88 @@ api.get('/campaigns/:id/status', async (req, res) => {
     res.json({ success: true, campaign, events: events || [], summary: { total: events?.length || 0, opened, delivered } });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+api.post('/contacts/manual', async (req, res) => {
+  try {
+    const contacts = parseManualContacts(req.body && req.body.emails);
+    if (!contacts.length) {
+      return res.status(400).json({ success: false, error: 'Enter at least one valid email address' });
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      return res.json({ success: true, contacts, persisted: false, skippedExisting: 0 });
+    }
+
+    const category = await ensureCategory(supabase, {
+      categoryId: req.body.categoryId,
+      categoryName: req.body.categoryName
+    });
+    if (!category) {
+      return res.status(400).json({ success: false, error: 'Select or create a category for these contacts' });
+    }
+
+    const emails = contacts.map((c) => c.email);
+    const { data: existingRows, error: existingErr } = await supabase
+      .from('contacts')
+      .select('email')
+      .eq('category_id', category.id)
+      .in('email', emails);
+    if (existingErr) throw existingErr;
+
+    const existing = new Set((existingRows || []).map((row) => String(row.email || '').toLowerCase()));
+    const newContacts = contacts.filter((c) => !existing.has(c.email));
+
+    let fileRow = null;
+    if (newContacts.length) {
+      const { data, error } = await supabase
+        .from('contact_files')
+        .insert({
+          category_id: category.id,
+          storage_path: `${category.id}/manual_${Date.now()}.txt`,
+          original_filename: `Manual entry ${new Date().toISOString().slice(0, 10)}`
+        })
+        .select('id,category_id,original_filename,created_at')
+        .single();
+      if (error) throw error;
+      fileRow = data;
+    }
+
+    const rowsToInsert = newContacts
+      .filter((c) => !existing.has(c.email))
+      .map((c) => ({
+        category_id: category.id,
+        contact_file_id: fileRow.id,
+        email: c.email,
+        name: c.name || '',
+        company: c.company || ''
+      }));
+
+    if (rowsToInsert.length) {
+      const { error: insErr } = await supabase.from('contacts').insert(rowsToInsert);
+      if (insErr) throw insErr;
+    }
+
+    const { data: savedContacts, error: fetchErr } = await supabase
+      .from('contacts')
+      .select('id,email,name,company,contact_file_id')
+      .eq('category_id', category.id)
+      .in('email', emails)
+      .order('email');
+    if (fetchErr) throw fetchErr;
+
+    res.json({
+      success: true,
+      contacts: savedContacts || [],
+      category,
+      persisted: true,
+      added: rowsToInsert.length,
+      skippedExisting: existing.size
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
