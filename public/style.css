@@ -60,3 +60,37 @@ header h1 { font-size: 2.5rem; margin-bottom: 10px; }
 .btn-secondary { background: #666; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; margin-top: 10px; }
 .btn-secondary:hover { background: #555; }
 .readonly { background: #f0f0f0; cursor: not-allowed; }
+.muted { color: #666; font-size: 0.95rem; }
+.error-text { color: #c62828; margin-bottom: 8px; }
+.row-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.btn-inline { width: auto; padding: 10px 18px; }
+.pill {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: #eee;
+  color: #444;
+}
+.pill-ok { background: #e8f5e9; color: #2e7d32; }
+.pill-warn { background: #fff8e1; color: #f57f17; }
+.category-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+.flex-grow { flex: 1 1 220px; }
+.category-actions { flex: 0 0 auto; }
+.invisible { visibility: hidden; }
+.btn-small-inline { width: auto; padding: 10px 16px; white-space: nowrap; }
+.form-group select {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  background: white;
+}
+.files-list { margin-top: 12px; font-size: 0.9rem; }
+.files-list ul { margin: 8px 0 0 18px; }
+.tracking-panel { margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd; }
+.tracking-details { margin: 12px 0; max-height: 200px; overflow-y: auto; font-size: 0.9rem; }
+.tracking-row { padding: 6px 0; border-bottom: 1px solid #eee; }
+.tracking-row:last-child { border-bottom: none; }

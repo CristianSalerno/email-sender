@@ -11,77 +11,123 @@
     <div class="spinner"></div>
     <p>Loading...</p>
   </div>
+
   <div class="container" id="main-content" style="display:none;">
     <header>
       <h1>📧 Email Sender</h1>
       <p>Send bulk emails with attachments to acquire clients</p>
     </header>
 
-    <section class="card" id="config-section">
-      <div id="connection-status" class="status disconnected">❌ Not connected</div>
-      <div id="config-form-container">
-        <h2>1. Configure SendGrid</h2>
-        <form id="config-form">
-          <div class="form-group">
-            <label>SendGrid API Key:</label>
-            <input type="password" id="api-key" placeholder="SG.xxxxxxxx..." required>
-          </div>
-          <div class="form-group">
-            <label>Your email (verified sender):</label>
-            <input type="email" id="sender-email" placeholder="your@email.com" required>
-          </div>
-          <button type="submit" class="btn-primary">Save</button>
-        </form>
-      </div>
-      <div id="connected-message" class="hidden">
-        <h2>✅ Account configured</h2>
-        <p>You can now use the app to send emails</p>
-        <button type="button" class="btn-secondary" onclick="disconnect()">Disconnect</button>
-      </div>
+    <section class="card" id="login-section">
+      <h2>Sign in</h2>
+      <p class="muted">Use the password configured on the server (<code>APP_LOGIN_PASSWORD</code>).</p>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" autocomplete="current-password" required>
+        </div>
+        <p id="login-error" class="error-text hidden"></p>
+        <button type="submit" class="btn-primary">Enter</button>
+      </form>
     </section>
 
-    <section class="card" id="upload-section">
-      <h2>2. Upload contacts</h2>
-      <div class="upload-area" id="upload-area">
-        <input type="file" id="contacts-file" accept=".xlsx,.xls,.txt" hidden>
-        <div class="upload-content">
-          <span class="icon">📁</span>
-          <p>Drag file here or click to select</p>
-          <small>Formats: Excel (.xlsx) or TXT with emails</small>
+    <div id="app-sections" class="hidden">
+      <section class="card row-header">
+        <div>
+          <span id="db-pill" class="pill">Database: …</span>
         </div>
-      </div>
-      <div id="file-info" class="hidden"></div>
-    </section>
+        <button type="button" class="btn-secondary btn-inline" id="logout-btn">Log out</button>
+      </section>
 
-    <section class="card disabled" id="emails-section">
-      <h2>3. Select recipients</h2>
-      <div class="toolbar">
-        <button class="btn-small" onclick="selectAll()">Select all</button>
-        <button class="btn-small" onclick="deselectAll()">Deselect all</button>
-      </div>
-      <div id="emails-list" class="emails-list"></div>
-      <div class="summary">Selected: <span id="selected-count">0</span> / <span id="total-count">0</span></div>
-    </section>
-
-    <section class="card disabled" id="compose-section">
-      <h2>4. Compose email</h2>
-      <form id="email-form">
-        <div class="form-group">
-          <label>From:</label>
-          <input type="email" id="from-email" readonly class="readonly">
-        </div>
-        <div class="form-group">
-          <label>Subject:</label>
-          <input type="text" id="subject" placeholder="Special offer for you!" required>
-        </div>
-        <div class="form-group">
-          <label>Message:</label>
-          <div class="editor-container">
-            <div class="editor-tabs">
-              <button type="button" class="tab-btn active" onclick="showTab('write')">Write</button>
-              <button type="button" class="tab-btn" onclick="showTab('preview')">Preview</button>
+      <section class="card" id="config-section">
+        <div id="connection-status" class="status disconnected">❌ Not connected</div>
+        <div id="config-form-container" class="hidden">
+          <h2>1. Configure SendGrid</h2>
+          <form id="config-form">
+            <div class="form-group">
+              <label>SendGrid API Key:</label>
+              <input type="password" id="api-key" placeholder="SG.xxxxxxxx..." required>
             </div>
-            <textarea id="body" placeholder="Write your message here...
+            <div class="form-group">
+              <label>Your email (verified sender):</label>
+              <input type="email" id="sender-email" placeholder="your@email.com" required>
+            </div>
+            <button type="submit" class="btn-primary">Save</button>
+          </form>
+        </div>
+        <div id="connected-message" class="hidden">
+          <h2>✅ Account configured</h2>
+          <p>You can now use the app to send emails</p>
+          <button type="button" class="btn-secondary" onclick="disconnect()">Disconnect</button>
+        </div>
+      </section>
+
+      <section class="card" id="category-section">
+        <h2>2. Category</h2>
+        <p class="muted">Uploads are stored under this label (for example: Germany market – coffee shops).</p>
+        <div class="category-row">
+          <div class="form-group flex-grow">
+            <label for="category-select">Saved categories</label>
+            <select id="category-select"></select>
+          </div>
+          <div class="form-group flex-grow">
+            <label for="new-category-name">Or create new</label>
+            <input type="text" id="new-category-name" placeholder="New category name">
+          </div>
+          <div class="form-group category-actions">
+            <label class="invisible">.</label>
+            <button type="button" class="btn-primary btn-small-inline" id="save-category-btn">Save category</button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <button type="button" class="btn-small" id="load-db-contacts-btn">Load contacts from database</button>
+          <button type="button" class="btn-small" id="refresh-files-btn">Refresh uploaded files list</button>
+        </div>
+        <div id="files-list" class="files-list muted hidden"></div>
+      </section>
+
+      <section class="card" id="upload-section">
+        <h2>3. Upload contacts</h2>
+        <div class="upload-area" id="upload-area">
+          <input type="file" id="contacts-file" accept=".xlsx,.xls,.txt" hidden>
+          <div class="upload-content">
+            <span class="icon">📁</span>
+            <p>Drag file here or click to select</p>
+            <small>Formats: Excel (.xlsx) or TXT with emails</small>
+          </div>
+        </div>
+        <div id="file-info" class="hidden"></div>
+      </section>
+
+      <section class="card disabled" id="emails-section">
+        <h2>4. Select recipients</h2>
+        <div class="toolbar">
+          <button class="btn-small" onclick="selectAll()">Select all</button>
+          <button class="btn-small" onclick="deselectAll()">Deselect all</button>
+        </div>
+        <div id="emails-list" class="emails-list"></div>
+        <div class="summary">Selected: <span id="selected-count">0</span> / <span id="total-count">0</span></div>
+      </section>
+
+      <section class="card disabled" id="compose-section">
+        <h2>5. Compose email</h2>
+        <form id="email-form">
+          <div class="form-group">
+            <label>From:</label>
+            <input type="email" id="from-email" readonly class="readonly">
+          </div>
+          <div class="form-group">
+            <label>Subject:</label>
+            <input type="text" id="subject" placeholder="Special offer for you!" required>
+          </div>
+          <div class="form-group">
+            <label>Message:</label>
+            <div class="editor-container">
+              <div class="editor-tabs">
+                <button type="button" class="tab-btn active" onclick="showTab('write')">Write</button>
+                <button type="button" class="tab-btn" onclick="showTab('preview')">Preview</button>
+              </div>
+              <textarea id="body" placeholder="Write your message here...
 
 Use {{name}} for personalization
 Use {{company}} for company name
@@ -89,22 +135,30 @@ Use {{email}} for email address
 
 # Markdown supported:
 **bold**, *italic*, lists, etc." required></textarea>
-            <div id="preview" class="preview-box hidden"></div>
+              <div id="preview" class="preview-box hidden"></div>
+            </div>
+            <small class="hint">Markdown supported. Use {{name}}, {{company}} for personalization</small>
           </div>
-          <small class="hint">Markdown supported. Use &#123;&#123;name&#125;&#125;, &#123;&#123;company&#125;&#125; for personalization</small>
-        </div>
-        <div class="form-group">
-          <label>Attachment (optional):</label>
-          <input type="file" id="attachment">
-        </div>
-        <button type="submit" class="btn-primary btn-large">📤 Send Emails</button>
-      </form>
-    </section>
+          <div class="form-group">
+            <label>Attachment (optional):</label>
+            <input type="file" id="attachment">
+          </div>
+          <button type="submit" class="btn-primary btn-large">📤 Send Emails</button>
+        </form>
+      </section>
 
-    <section class="card hidden" id="results-section">
-      <h2>5. Results</h2>
-      <div id="results"></div>
-    </section>
+      <section class="card hidden" id="results-section">
+        <h2>6. Results</h2>
+        <div id="results-meta" class="muted"></div>
+        <div id="results"></div>
+        <div id="tracking-panel" class="tracking-panel hidden">
+          <h3>Open tracking</h3>
+          <p id="tracking-summary" class="muted"></p>
+          <div id="tracking-details" class="tracking-details"></div>
+          <button type="button" class="btn-small" id="refresh-tracking-btn">Refresh status</button>
+        </div>
+      </section>
+    </div>
   </div>
 
 <script src="app.js"></script>
@@ -114,7 +168,7 @@ Use {{email}} for email address
     const textarea = document.getElementById('body');
     const preview = document.getElementById('preview');
     const tabs = document.querySelectorAll('.tab-btn');
-    
+
     if (tab === 'write') {
       textarea.classList.remove('hidden');
       preview.classList.add('hidden');
@@ -128,7 +182,7 @@ Use {{email}} for email address
       tabs[1].classList.add('active');
     }
   }
-  
+
   document.getElementById('body').addEventListener('input', function() {
     if (!document.getElementById('preview').classList.contains('hidden')) {
       document.getElementById('preview').innerHTML = marked.parse(this.value);
@@ -140,7 +194,7 @@ Use {{email}} for email address
       setTimeout(() => {
         document.getElementById('loading-screen').style.display = 'none';
         document.getElementById('main-content').style.display = 'block';
-      }, 500);
+      }, 400);
     });
 </script>
 </body>
