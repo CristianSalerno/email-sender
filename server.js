@@ -526,6 +526,48 @@ api.patch('/categories/:id', async (req, res) => {
   }
 });
 
+api.delete('/categories/:id', async (req, res) => {
+  try {
+    const supabase = getSupabase();
+    if (!supabase) return res.status(503).json({ success: false, error: 'Database not configured' });
+
+    const { id } = req.params;
+    const { data: category, error: catErr } = await supabase.from('categories').select('id,name').eq('id', id).maybeSingle();
+    if (catErr) throw catErr;
+    if (!category) return res.status(404).json({ success: false, error: 'Category not found' });
+
+    const { data: files, error: filesErr } = await supabase
+      .from('contact_files')
+      .select('id,storage_path')
+      .eq('category_id', id);
+    if (filesErr) throw filesErr;
+
+    const bucket = process.env.SUPABASE_STORAGE_BUCKET;
+    const storagePaths = (files || [])
+      .map((file) => file.storage_path)
+      .filter((storagePath) => storagePath && !storagePath.includes('/manual_'));
+    if (bucket && storagePaths.length) {
+      const { error: storageErr } = await supabase.storage.from(bucket).remove(storagePaths);
+      if (storageErr) {
+        return res.status(500).json({ success: false, error: storageErr.message });
+      }
+    }
+
+    const fileIds = (files || []).map((file) => file.id);
+    if (fileIds.length) {
+      const { error: fileDelErr } = await supabase.from('contact_files').delete().in('id', fileIds);
+      if (fileDelErr) throw fileDelErr;
+    }
+
+    const { error: catDelErr } = await supabase.from('categories').delete().eq('id', id);
+    if (catDelErr) throw catDelErr;
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 api.get('/contacts', async (req, res) => {
   try {
     const supabase = getSupabase();

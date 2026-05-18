@@ -307,7 +307,11 @@ function renderCategoriesTable() {
         escapeHtml(c.name) +
         '</td><td class="col-actions"><button type="button" class="link-btn" data-edit-cat="' +
         escapeHtml(c.id) +
-        '">Edit</button></td></tr>'
+        '">Edit</button> <button type="button" class="link-btn link-danger" data-delete-cat="' +
+        escapeHtml(c.id) +
+        '" data-cat-name="' +
+        escapeHtml(c.name) +
+        '">Delete</button></td></tr>'
       );
     })
     .join('');
@@ -325,6 +329,51 @@ function renderCategoriesTable() {
       document.getElementById('edit-category-dialog').showModal();
     });
   });
+
+  tbody.querySelectorAll('[data-delete-cat]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      deleteCategory(btn.getAttribute('data-delete-cat'), btn.getAttribute('data-cat-name') || 'this category');
+    });
+  });
+}
+
+async function deleteCategory(id, name) {
+  if (!id) return;
+  const ok = window.confirm(
+    'Delete "' +
+      name +
+      '" and all contacts/files in this category? Campaign history will remain but will no longer be linked to this category.'
+  );
+  if (!ok) return;
+
+  const res = await api('/api/categories/' + encodeURIComponent(id), {
+    method: 'DELETE',
+    body: JSON.stringify({})
+  });
+  const data = await res.json().catch(function () {
+    return {};
+  });
+
+  if (!data.success) {
+    showToast(data.error || 'Could not delete category', 'error');
+    return;
+  }
+
+  const selectedId = getSelectedCategoryId();
+  await loadCategories();
+  if (selectedId === id) {
+    allContacts = [];
+    campaignsCache = [];
+    document.getElementById('category-select').value = '';
+    document.getElementById('files-list').classList.add('hidden');
+    document.getElementById('recipients-section').classList.add('hidden');
+    document.getElementById('compose-section').classList.add('hidden');
+    document.getElementById('campaigns-tbody').innerHTML = '';
+    document.getElementById('campaigns-empty').classList.remove('hidden');
+    document.getElementById('selected-count').textContent = '0';
+    document.getElementById('total-count').textContent = '0';
+  }
+  showToast('Category deleted', 'success');
 }
 
 document.getElementById('edit-category-cancel').addEventListener('click', function () {
