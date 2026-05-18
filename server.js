@@ -57,6 +57,78 @@ function normalizeSgMessageId(id) {
   return String(id).replace(/[<>]/g, '').trim();
 }
 
+function normalizeWebhookPayload(raw) {
+  if (raw == null) return [];
+  if (typeof raw === 'string') {
+    try {
+      return normalizeWebhookPayload(JSON.parse(raw));
+    } catch {
+      return [];
+    }
+  }
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'object') {
+    if (Array.isArray(raw.events)) return raw.events;
+    if (typeof raw.events === 'string') {
+      try {
+        return normalizeWebhookPayload(JSON.parse(raw.events));
+      } catch {
+        return [];
+      }
+    }
+    if (raw.event != null || raw.sg_message_id != null || raw.email != null) {
+      return [raw];
+    }
+  }
+  return [];
+}
+
+function webhookCampaignId(evt) {
+  const ua =
+    evt.unique_args && typeof evt.unique_args === 'object' && !Array.isArray(evt.unique_args)
+      ? evt.unique_args
+      : {};
+  return String(evt.campaign_id || evt['campaign_id'] || ua.campaign_id || '').trim();
+}
+
+function readSgMessageIdFromResponse(response) {
+  const h =
+    response.headers.get('x-message-id') ||
+    response.headers.get('X-Message-Id');
+  return normalizeSgMessageId(h);
+}
+
+async function findEmailEventForWebhook(supabase, evt) {
+  const sgId = normalizeSgMessageId(evt.sg_message_id);
+  const recipient = (evt.email || evt.recipient_email || '').toLowerCase().trim();
+  const campaignId = webhookCampaignId(evt);
+
+  if (sgId) {
+    const { data, error } = await supabase
+      .from('email_events')
+      .select('id,status,opened_at,delivered_at,sg_message_id')
+      .eq('sg_message_id', sgId)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) return data;
+  }
+
+  if (campaignId && recipient) {
+    const { data, error } = await supabase
+      .from('email_events')
+      .select('id,status,opened_at,delivered_at,sg_message_id')
+      .eq('campaign_id', campaignId)
+      .eq('recipient_email', recipient)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) return data;
+  }
+
+  return null;
+}
+
 function authMiddleware(req, res, next) {
   const token = req.cookies[COOKIE_NAME];
   if (!token) {
@@ -143,8 +215,7 @@ app.get('/api/session', (req, res) => {
 app.post('/api/sendgrid/events', async (req, res) => {
   try {
     const supabase = getSupabase();
-    const raw = req.body;
-    const events = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    const events = normalizeWebhookPayload(req.body);
     if (!supabase) {
       return res.json({ success: true, received: events.length, persisted: false });
     }
@@ -152,22 +223,10 @@ app.post('/api/sendgrid/events', async (req, res) => {
     for (const evt of events) {
       await supabase.from('sendgrid_events').insert({ payload: evt });
 
+      const row = await findEmailEventForWebhook(supabase, evt);
+      if (!row) continue;
+
       const sgId = normalizeSgMessageId(evt.sg_message_id);
-      const campaignId = evt.campaign_id || (evt.unique_args && evt.unique_args.campaign_id);
-      const recipient = (evt.email || '').toLowerCase().trim();
-
-      let q = supabase.from('email_events').select('id,status,opened_at,delivered_at,sg_message_id');
-      if (sgId) {
-        q = q.eq('sg_message_id', sgId);
-      } else if (campaignId && recipient) {
-        q = q.eq('campaign_id', campaignId).eq('recipient_email', recipient);
-      } else {
-        continue;
-      }
-
-      const { data: row, error: findErr } = await q.maybeSingle();
-      if (findErr || !row) continue;
-
       const ts = evt.timestamp ? new Date(Number(evt.timestamp) * 1000).toISOString() : new Date().toISOString();
       const patch = { updated_at: new Date().toISOString() };
 
@@ -372,6 +431,48 @@ api.get('/contacts', async (req, res) => {
   }
 });
 
+api.get('/campaigns', async (req, res) => {
+  try {
+    const supabase = getSupabase();
+    if (!supabase) return res.json({ success: true, campaigns: [] });
+    const limit = Math.min(parseInt(req.query.limit || '40', 10) || 40, 100);
+    let q = supabase
+      .from('campaigns')
+      .select('id,subject,category_id,created_at')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (req.query.categoryId) {
+      q = q.eq('category_id', req.query.categoryId);
+    }
+    const { data: campaigns, error } = await q;
+    if (error) throw error;
+    const rows = campaigns || [];
+    if (!rows.length) {
+      return res.json({ success: true, campaigns: [] });
+    }
+    const ids = rows.map((c) => c.id);
+    const { data: evs, error: evErr } = await supabase
+      .from('email_events')
+      .select('campaign_id,opened_at')
+      .in('campaign_id', ids);
+    if (evErr) throw evErr;
+    const agg = {};
+    for (const ev of evs || []) {
+      if (!agg[ev.campaign_id]) agg[ev.campaign_id] = { total: 0, opened: 0 };
+      agg[ev.campaign_id].total++;
+      if (ev.opened_at) agg[ev.campaign_id].opened++;
+    }
+    const out = rows.map((c) => ({
+      ...c,
+      totalRecipients: agg[c.id]?.total ?? 0,
+      openedCount: agg[c.id]?.opened ?? 0
+    }));
+    res.json({ success: true, campaigns: out });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 api.get('/campaigns/:id/status', async (req, res) => {
   try {
     const supabase = getSupabase();
@@ -549,16 +650,18 @@ api.post('/send', async (req, res) => {
         .replace(/\{\{name\}\}/gi, contact.name || '')
         .replace(/\{\{company\}\}/gi, contact.company || '');
 
+      const customArgs = {
+        recipient_email: String(contact.email || '').toLowerCase().trim()
+      };
+      if (campaign) customArgs.campaign_id = String(campaign.id);
+      if (contact.id) customArgs.contact_id = String(contact.id);
+
       const msg = {
         personalizations: [
           {
             to: [{ email: contact.email }],
             subject: personalizedSubject,
-            custom_args: {
-              campaign_id: campaign ? String(campaign.id) : '',
-              contact_id: contact.id ? String(contact.id) : '',
-              recipient_email: String(contact.email || '').toLowerCase().trim()
-            }
+            custom_args: customArgs
           }
         ],
         from: { email: process.env.FROM_EMAIL },
@@ -601,7 +704,7 @@ api.post('/send', async (req, res) => {
           body: JSON.stringify(msg)
         });
 
-        const sgMsgId = normalizeSgMessageId(response.headers.get('x-message-id'));
+        const sgMsgId = readSgMessageIdFromResponse(response);
 
         if (response.ok || response.status === 202) {
           results.push({ email: contact.email, name: contact.name, status: 'sent' });

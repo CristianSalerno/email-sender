@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Email Sender — Outreach B2B</title>
+  <title>Email Sender — B2B outreach</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet">
@@ -12,7 +12,7 @@
 <body>
   <div id="loading-screen" class="loading-screen">
     <div class="spinner"></div>
-    <p>Cargando…</p>
+    <p>Loading…</p>
   </div>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
@@ -20,74 +20,77 @@
   <div class="container" id="main-content" style="display:none;">
     <header class="app-header">
       <div>
-        <p class="app-kicker">Outreach B2B</p>
+        <p class="app-kicker">B2B outreach</p>
         <h1>Email Sender</h1>
-        <p class="app-subtitle">Importa listas por categoría, envía con SendGrid y revisa aperturas.</p>
+        <p class="app-subtitle">Import lists by category, send with SendGrid, and track opens.</p>
       </div>
     </header>
 
     <section class="card" id="login-section">
-      <h2 class="card-title">Acceso</h2>
-      <p class="muted">Contraseña configurada en el servidor (<code>APP_LOGIN_PASSWORD</code>).</p>
+      <h2 class="card-title">Sign in</h2>
+      <p class="muted">Use the password set on the server (<code>APP_LOGIN_PASSWORD</code>).</p>
       <form id="login-form" novalidate>
         <div class="form-group">
-          <label for="login-password">Contraseña</label>
+          <label for="login-password">Password</label>
           <input type="password" id="login-password" autocomplete="current-password" required>
           <p id="login-error" class="field-error hidden" role="alert"></p>
         </div>
-        <button type="submit" class="btn btn-primary">Entrar</button>
+        <button type="submit" class="btn btn-primary">Sign in</button>
       </form>
     </section>
 
     <div id="app-sections" class="hidden">
       <section class="card card-bar">
-        <span id="db-pill" class="pill">Base de datos: …</span>
-        <button type="button" class="btn btn-ghost" id="logout-btn">Cerrar sesión</button>
+        <span id="db-pill" class="pill">Database: …</span>
+        <button type="button" class="btn btn-ghost" id="logout-btn">Log out</button>
       </section>
 
       <section class="card" id="config-section">
-        <div id="connection-status" class="status status-off">SendGrid no configurado</div>
+        <div id="connection-status" class="status status-off">SendGrid not configured</div>
         <div id="connected-message" class="hidden">
-          <p class="status-inline"><span class="status-dot ok"></span> Remitente: <strong id="connected-email"></strong></p>
-          <p class="muted small">Las credenciales se definen en el proveedor (p. ej. Vercel), no en esta pantalla.</p>
-          <button type="button" class="btn btn-secondary btn-sm" id="disconnect-info-btn">Más información</button>
+          <p class="status-inline"><span class="status-dot ok"></span> Sender: <strong id="connected-email"></strong></p>
+          <p class="muted small">Credentials are set on your host (e.g. Vercel environment variables), not on this screen.</p>
+          <button type="button" class="btn btn-secondary btn-sm" id="disconnect-info-btn">Learn more</button>
         </div>
+        <p id="webhook-hint" class="muted small hidden" style="margin-top:0.75rem">
+          For open tracking, set the SendGrid Event Webhook to <code id="webhook-url-display"></code> and enable <strong>Delivered</strong> and <strong>Open</strong> events. Recipients must allow images to load for opens to register.
+        </p>
       </section>
 
       <section class="card" id="import-section">
-        <h2 class="card-title">1. Categoría y archivo</h2>
-        <p class="muted">Las categorías nuevas solo se crean al <strong>importar un Excel o TXT</strong> con contactos. No se puede guardar una categoría vacía.</p>
+        <h2 class="card-title">1. Category and file</h2>
+        <p class="muted">New categories are created only when you <strong>import an Excel or TXT file</strong> with contacts. You cannot save an empty category.</p>
 
-        <div class="segmented" role="radiogroup" aria-label="Tipo de categoría">
+        <div class="segmented" role="radiogroup" aria-label="Category type">
           <label class="segmented-item">
             <input type="radio" name="import-mode" value="existing" checked>
-            <span>Categoría existente</span>
+            <span>Existing category</span>
           </label>
           <label class="segmented-item">
             <input type="radio" name="import-mode" value="new">
-            <span>Nueva categoría</span>
+            <span>New category</span>
           </label>
         </div>
 
         <div id="wrap-existing-category" class="form-group">
-          <label for="category-select">Categoría</label>
+          <label for="category-select">Category</label>
           <select id="category-select"></select>
           <p id="category-select-error" class="field-error hidden" role="alert"></p>
         </div>
 
         <div id="wrap-new-category" class="form-group hidden">
-          <label for="new-category-name">Nombre de la nueva categoría</label>
-          <input type="text" id="new-category-name" placeholder="Ej. Alemania — cafeterías" autocomplete="off">
+          <label for="new-category-name">New category name</label>
+          <input type="text" id="new-category-name" placeholder="e.g. Germany — coffee shops" autocomplete="off">
           <p id="new-category-error" class="field-error hidden" role="alert"></p>
         </div>
 
         <div class="form-group">
-          <label>Archivo de contactos <span class="req">*</span></label>
-          <div class="upload-area" id="upload-area" tabindex="0" role="button" aria-label="Seleccionar archivo">
+          <label>Contact file <span class="req">*</span></label>
+          <div class="upload-area" id="upload-area" tabindex="0" role="button" aria-label="Choose file">
             <input type="file" id="contacts-file" accept=".xlsx,.xls,.txt" hidden>
             <div class="upload-inner">
-              <p class="upload-title">Arrastra un archivo aquí o haz clic</p>
-              <p class="muted small">.xlsx, .xls o .txt</p>
+              <p class="upload-title">Drag a file here or click to browse</p>
+              <p class="muted small">.xlsx, .xls, or .txt</p>
               <p id="pending-file-name" class="pending-file muted small"></p>
             </div>
           </div>
@@ -97,33 +100,34 @@
         <p id="import-global-error" class="banner-error hidden" role="alert"></p>
 
         <div class="btn-row">
-          <button type="button" class="btn btn-primary" id="btn-import">Importar contactos</button>
-          <button type="button" class="btn btn-secondary btn-sm" id="refresh-files-btn">Archivos subidos</button>
+          <button type="button" class="btn btn-primary" id="btn-import">Import contacts</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="refresh-files-btn">Recent uploads</button>
         </div>
         <div id="file-info" class="info-box hidden"></div>
         <div id="files-list" class="files-box muted hidden"></div>
       </section>
 
       <section class="card hidden" id="manage-categories-section">
-        <h2 class="card-title">Gestionar categorías</h2>
-        <p class="muted small">Renombra una categoría; los contactos siguen asociados.</p>
+        <h2 class="card-title">Manage categories</h2>
+        <p class="muted small">Rename a category; contacts stay linked.</p>
         <div class="table-wrap">
           <table class="data-table" id="categories-table">
             <thead>
-              <tr><th>Nombre</th><th class="col-actions">Acciones</th></tr>
+              <tr><th>Name</th><th class="col-actions">Actions</th></tr>
             </thead>
             <tbody id="categories-tbody"></tbody>
           </table>
         </div>
-        <p id="categories-empty" class="muted small hidden">No hay categorías aún. Importa un archivo para crear la primera.</p>
+        <p id="categories-empty" class="muted small hidden">No categories yet. Import a file to create the first one.</p>
       </section>
 
       <section class="card hidden" id="recipients-section">
-        <h2 class="card-title">2. Destinatarios</h2>
+        <h2 class="card-title">2. Recipients</h2>
         <div class="toolbar">
-          <button type="button" class="btn btn-secondary btn-sm" id="btn-select-all">Seleccionar todos</button>
-          <button type="button" class="btn btn-secondary btn-sm" id="btn-select-none">Ninguno</button>
-          <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-recipients">Actualizar estado de envío</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-select-all">Select all</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-select-none">None</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-load-saved-contacts">Load saved contacts</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-recipients">Refresh send status</button>
         </div>
         <div class="table-wrap table-scroll">
           <table class="data-table" id="recipients-table">
@@ -131,60 +135,88 @@
               <tr>
                 <th class="col-check"></th>
                 <th>Email</th>
-                <th>Nombre</th>
-                <th>Empresa</th>
-                <th>Último envío</th>
+                <th>Name</th>
+                <th>Company</th>
+                <th>Last send</th>
               </tr>
             </thead>
             <tbody id="recipients-tbody"></tbody>
           </table>
         </div>
-        <p class="summary">Seleccionados: <span id="selected-count">0</span> / <span id="total-count">0</span></p>
+        <p class="summary">Selected: <span id="selected-count">0</span> / <span id="total-count">0</span></p>
       </section>
 
       <section class="card hidden" id="compose-section">
-        <h2 class="card-title">3. Redactar y enviar</h2>
+        <h2 class="card-title">3. Compose and send</h2>
         <form id="email-form" novalidate>
           <div class="form-group">
-            <label for="from-email">De</label>
+            <label for="from-email">From</label>
             <input type="email" id="from-email" readonly class="input-readonly">
           </div>
           <div class="form-group">
-            <label for="subject">Asunto <span class="req">*</span></label>
-            <input type="text" id="subject" placeholder="Asunto del correo" required>
+            <label for="subject">Subject <span class="req">*</span></label>
+            <input type="text" id="subject" placeholder="Email subject" required>
             <p id="subject-error" class="field-error hidden" role="alert"></p>
           </div>
           <div class="form-group">
-            <label for="body">Mensaje <span class="req">*</span></label>
+            <label for="body">Message <span class="req">*</span></label>
+            <div class="message-help" aria-label="Message formatting reference">
+              <p class="message-help-title">Reference (always visible while you write)</p>
+              <ul class="message-help-list">
+                <li><strong>Personalization:</strong> <code>{{name}}</code>, <code>{{company}}</code>, <code>{{email}}</code></li>
+                <li><strong>Markdown:</strong> <code>**bold**</code>, <code>*italic*</code>, lists, headings</li>
+              </ul>
+            </div>
             <div class="editor-container">
               <div class="editor-tabs">
-                <button type="button" class="tab-btn active" data-tab="write">Escribir</button>
-                <button type="button" class="tab-btn" data-tab="preview">Vista previa</button>
+                <button type="button" class="tab-btn active" data-tab="write">Write</button>
+                <button type="button" class="tab-btn" data-tab="preview">Preview</button>
               </div>
-              <textarea id="body" placeholder="Usa {{name}}, {{company}}, {{email}} para personalizar." required></textarea>
+              <textarea id="body" rows="10" autocomplete="off" required></textarea>
               <div id="preview" class="preview-box hidden"></div>
             </div>
             <p id="body-error" class="field-error hidden" role="alert"></p>
-            <small class="hint">Markdown básico: **negrita**, *cursiva*</small>
           </div>
           <div class="form-group">
-            <label for="attachment">Adjunto (opcional)</label>
+            <label for="attachment">Attachment (optional)</label>
             <input type="file" id="attachment">
             <p id="attachment-error" class="field-error hidden" role="alert"></p>
           </div>
-          <button type="submit" class="btn btn-primary btn-send" id="btn-send">Enviar correos</button>
+          <button type="submit" class="btn btn-primary btn-send" id="btn-send">Send emails</button>
         </form>
       </section>
 
+      <section class="card hidden" id="campaign-history-section">
+        <h2 class="card-title">Sent campaigns</h2>
+        <p class="muted small">History is stored in the database. Click a row to open tracking for that send. When a category is selected in step 1, the list is limited to that category.</p>
+        <div class="toolbar">
+          <button type="button" class="btn btn-secondary btn-sm" id="refresh-campaigns-btn">Refresh list</button>
+        </div>
+        <div class="table-wrap table-scroll">
+          <table class="data-table" id="campaigns-table">
+            <thead>
+              <tr>
+                <th>Subject</th>
+                <th>Sent</th>
+                <th>Recipients</th>
+                <th>Opened</th>
+              </tr>
+            </thead>
+            <tbody id="campaigns-tbody"></tbody>
+          </table>
+        </div>
+        <p id="campaigns-empty" class="muted small hidden">No campaigns yet. Send with the database connected to see history here.</p>
+      </section>
+
       <section class="card hidden" id="results-section">
-        <h2 class="card-title">Resultados</h2>
+        <h2 class="card-title">Results</h2>
         <div id="results-meta" class="muted small"></div>
         <div id="results" class="results-list"></div>
         <div id="tracking-panel" class="tracking-panel hidden">
-          <h3 class="sub-title">Seguimiento de aperturas</h3>
+          <h3 class="sub-title">Open tracking</h3>
           <p id="tracking-summary" class="muted small"></p>
           <div id="tracking-details" class="tracking-details"></div>
-          <button type="button" class="btn btn-secondary btn-sm" id="refresh-tracking-btn">Actualizar</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="refresh-tracking-btn">Refresh</button>
         </div>
       </section>
     </div>
@@ -192,16 +224,16 @@
 
   <dialog id="edit-category-dialog" class="modal">
     <form id="edit-category-form" class="modal-inner">
-      <h3 class="modal-title">Renombrar categoría</h3>
+      <h3 class="modal-title">Rename category</h3>
       <input type="hidden" id="edit-category-id">
       <div class="form-group">
-        <label for="edit-category-name">Nombre</label>
+        <label for="edit-category-name">Name</label>
         <input type="text" id="edit-category-name" required>
       </div>
       <p id="edit-category-form-error" class="field-error hidden" role="alert"></p>
       <div class="modal-actions">
-        <button type="button" class="btn btn-secondary btn-sm" id="edit-category-cancel">Cancelar</button>
-        <button type="submit" class="btn btn-primary btn-sm" id="edit-category-save">Guardar</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="edit-category-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm" id="edit-category-save">Save</button>
       </div>
     </form>
   </dialog>

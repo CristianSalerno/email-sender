@@ -289,6 +289,7 @@ input:focus, textarea:focus, select:focus {
   z-index: 1;
 }
 .data-table tbody tr:hover { background: #f8fafc; }
+.data-table tbody tr.campaign-row { cursor: pointer; }
 .col-check { width: 40px; text-align: center; }
 .col-actions { width: 100px; text-align: right; }
 
@@ -322,6 +323,34 @@ input:focus, textarea:focus, select:focus {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+.message-help {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+.message-help-title {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.message-help-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.message-help-list li { margin-bottom: 4px; }
+.message-help-list code {
+  font-size: 0.8125rem;
+  background: #e2e8f0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--text);
 }
 
 .editor-container {

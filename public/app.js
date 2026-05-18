@@ -3,6 +3,9 @@ let lastCampaignId = null;
 let categories = [];
 let pendingFile = null;
 let hasDatabase = false;
+let campaignsCache = [];
+
+const LAST_CAMPAIGN_STORAGE = 'email-sender:lastCampaignId';
 
 function api(path, options = {}) {
   return fetch(path, {
@@ -75,7 +78,7 @@ function validateImport() {
   if (mode === 'existing') {
     if (!getSelectedCategoryId()) {
       const e = document.getElementById('category-select-error');
-      e.textContent = 'Selecciona una categoría.';
+      e.textContent = 'Please select a category.';
       e.classList.remove('hidden');
       ok = false;
     }
@@ -83,14 +86,14 @@ function validateImport() {
     const name = document.getElementById('new-category-name').value.trim();
     if (!name) {
       const e = document.getElementById('new-category-error');
-      e.textContent = 'Escribe el nombre de la nueva categoría.';
+      e.textContent = 'Enter a name for the new category.';
       e.classList.remove('hidden');
       ok = false;
     }
   }
   if (!pendingFile) {
     const e = document.getElementById('file-error');
-    e.textContent = 'Adjunta un archivo Excel o TXT con los contactos.';
+    e.textContent = 'Attach an Excel or TXT file with contacts.';
     e.classList.remove('hidden');
     ok = false;
   }
@@ -101,7 +104,7 @@ function setPendingFile(file) {
   pendingFile = file || null;
   const label = document.getElementById('pending-file-name');
   if (label) {
-    label.textContent = file ? 'Archivo: ' + file.name : '';
+    label.textContent = file ? 'File: ' + file.name : '';
   }
 }
 
@@ -124,6 +127,10 @@ function showApp(authenticated) {
 async function afterLogin() {
   await Promise.all([checkStatus(), loadCategories()]);
   refreshFilesList();
+  if (hasDatabase) {
+    await loadCampaignHistory();
+    restoreLastCampaignFromStorage();
+  }
 }
 
 async function checkStatus() {
@@ -151,7 +158,7 @@ function updateStatus(data) {
   hasDatabase = !!data.database;
 
   if (dbPill) {
-    dbPill.textContent = data.database ? 'Base de datos conectada' : 'Base de datos no configurada';
+    dbPill.textContent = data.database ? 'Database connected' : 'Database not configured';
     dbPill.classList.toggle('pill-ok', !!data.database);
     dbPill.classList.toggle('pill-warn', !data.database);
   }
@@ -161,9 +168,23 @@ function updateStatus(data) {
     manage.classList.toggle('hidden', !data.database);
   }
 
+  const campaignSection = document.getElementById('campaign-history-section');
+  if (campaignSection) {
+    campaignSection.classList.toggle('hidden', !data.database);
+  }
+
+  const webhookHint = document.getElementById('webhook-hint');
+  const webhookUrl = document.getElementById('webhook-url-display');
+  if (webhookHint && webhookUrl) {
+    webhookHint.classList.toggle('hidden', !data.database);
+    if (data.database) {
+      webhookUrl.textContent = window.location.origin + '/api/sendgrid/events';
+    }
+  }
+
   if (data.connected) {
     el.className = 'status status-on';
-    el.textContent = 'SendGrid listo para enviar';
+    el.textContent = 'SendGrid ready to send';
     el.classList.remove('hidden');
     connectedBox.classList.remove('hidden');
     document.getElementById('connected-email').textContent = data.email || '';
@@ -176,7 +197,7 @@ function updateStatus(data) {
   } else {
     el.className = 'status status-off';
     el.textContent =
-      'SendGrid no está configurado en este entorno. Define SENDGRID_API_KEY y FROM_EMAIL en Vercel (o en .env local). Puedes seguir importando contactos; el envío no estará disponible.';
+      'SendGrid is not configured in this environment. Set SENDGRID_API_KEY and FROM_EMAIL in Vercel (or in a local .env). You can still import contacts; sending will not be available.';
     el.classList.remove('hidden');
     connectedBox.classList.add('hidden');
     sectionIdsSendgridLocked().forEach(function (id) {
@@ -199,13 +220,13 @@ document.getElementById('login-form').addEventListener('submit', async function 
     return {};
   });
   if (!res.ok || !data.success) {
-    errEl.textContent = data.error || 'No se pudo iniciar sesión.';
+    errEl.textContent = data.error || 'Sign-in failed.';
     errEl.classList.remove('hidden');
     return;
   }
   document.getElementById('login-password').value = '';
   showApp(true);
-  showToast('Sesión iniciada', 'success');
+  showToast('Signed in', 'success');
   await afterLogin();
 });
 
@@ -214,11 +235,14 @@ document.getElementById('logout-btn').addEventListener('click', logout);
 async function logout() {
   await api('/api/logout', { method: 'POST', body: JSON.stringify({}) });
   lastCampaignId = null;
+  try {
+    sessionStorage.removeItem(LAST_CAMPAIGN_STORAGE);
+  } catch (_) {}
   allContacts = [];
   pendingFile = null;
   setPendingFile(null);
   showApp(false);
-  showToast('Sesión cerrada', 'info');
+  showToast('Signed out', 'info');
 }
 
 document.querySelectorAll('input[name="import-mode"]').forEach(function (radio) {
@@ -227,7 +251,7 @@ document.querySelectorAll('input[name="import-mode"]').forEach(function (radio) 
 
 document.getElementById('disconnect-info-btn').addEventListener('click', function () {
   showToast(
-    'SendGrid se configura con variables de entorno en tu proveedor (Vercel). No se guarda en el navegador.',
+    'SendGrid is configured with environment variables on your host (e.g. Vercel). Nothing is stored in the browser.',
     'info'
   );
 });
@@ -243,15 +267,18 @@ async function loadCategories() {
   const sel = document.getElementById('category-select');
   const current = sel.value;
   sel.innerHTML =
-    '<option value="">— Elige una categoría —</option>' +
+    '<option value="">— Choose a category —</option>' +
     categories
       .map(function (c) {
         return '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
       })
       .join('');
-  if (current && categories.some(function (c) {
-    return c.id === current;
-  })) {
+  if (
+    current &&
+    categories.some(function (c) {
+      return c.id === current;
+    })
+  ) {
     sel.value = current;
   }
   renderCategoriesTable();
@@ -274,7 +301,7 @@ function renderCategoriesTable() {
         escapeHtml(c.name) +
         '</td><td class="col-actions"><button type="button" class="link-btn" data-edit-cat="' +
         escapeHtml(c.id) +
-        '">Editar</button></td></tr>'
+        '">Edit</button></td></tr>'
       );
     })
     .join('');
@@ -305,7 +332,7 @@ document.getElementById('edit-category-form').addEventListener('submit', async f
   const id = document.getElementById('edit-category-id').value;
   const name = document.getElementById('edit-category-name').value.trim();
   if (!name) {
-    err.textContent = 'El nombre no puede estar vacío.';
+    err.textContent = 'Name cannot be empty.';
     err.classList.remove('hidden');
     return;
   }
@@ -315,16 +342,21 @@ document.getElementById('edit-category-form').addEventListener('submit', async f
   });
   const data = await res.json();
   if (!data.success) {
-    err.textContent = data.error || 'No se pudo guardar.';
+    err.textContent = data.error || 'Could not save.';
     err.classList.remove('hidden');
     return;
   }
   document.getElementById('edit-category-dialog').close();
-  showToast('Categoría actualizada', 'success');
+  showToast('Category updated', 'success');
   await loadCategories();
 });
 
-document.getElementById('category-select').addEventListener('change', refreshFilesList);
+document.getElementById('category-select').addEventListener('change', function () {
+  refreshFilesList();
+  if (hasDatabase) {
+    loadCampaignHistory();
+  }
+});
 
 document.getElementById('btn-import').addEventListener('click', runImport);
 
@@ -337,7 +369,7 @@ function runImport() {
 
   const info = document.getElementById('file-info');
   info.classList.remove('hidden');
-  info.innerHTML = '<div class="muted">Importando…</div>';
+  info.innerHTML = '<div class="muted">Importing…</div>';
   info.classList.remove('hidden');
 
   const reader = new FileReader();
@@ -381,8 +413,8 @@ function runImport() {
           openedAt: c.openedAt || null
         };
       });
-      const note = data.persisted ? 'Guardado en la base de datos.' : 'Solo en memoria (configura Supabase para guardar).';
-      info.innerHTML = '<strong>' + allContacts.length + ' contactos</strong> · ' + note;
+      const note = data.persisted ? 'Saved to the database.' : 'In memory only (configure Supabase to persist).';
+      info.innerHTML = '<strong>' + allContacts.length + ' contacts</strong> · ' + note;
       renderRecipientsTable();
       document.getElementById('recipients-section').classList.remove('hidden');
       document.getElementById('compose-section').classList.remove('hidden');
@@ -390,13 +422,13 @@ function runImport() {
       if (data.persisted && getSelectedCategoryId()) {
         await loadContactsFromDatabase(false);
       }
-      showToast('Importación correcta', 'success');
+      showToast('Import successful', 'success');
     } else {
       info.classList.add('hidden');
       const g = document.getElementById('import-global-error');
-      g.textContent = data.error || 'Error al importar.';
+      g.textContent = data.error || 'Import failed.';
       g.classList.remove('hidden');
-      showToast(data.error || 'Error al importar', 'error');
+      showToast(data.error || 'Import failed', 'error');
     }
   };
   reader.readAsDataURL(file);
@@ -420,7 +452,7 @@ async function refreshFilesList() {
   }
   box.classList.remove('hidden');
   box.innerHTML =
-    '<strong>Archivos recientes en esta categoría</strong><ul>' +
+    '<strong>Recent uploads in this category</strong><ul>' +
     data.files
       .map(function (f) {
         return (
@@ -439,18 +471,25 @@ document.getElementById('btn-refresh-recipients').addEventListener('click', func
   loadContactsFromDatabase(true);
 });
 
+document.getElementById('btn-load-saved-contacts').addEventListener('click', function () {
+  loadContactsFromDatabase(true);
+});
+
+document.getElementById('refresh-campaigns-btn').addEventListener('click', function () {
+  loadCampaignHistory();
+});
+
 async function loadContactsFromDatabase(showToastOk) {
   const id = getSelectedCategoryId();
   if (!id) {
-    showToast('Selecciona una categoría en el paso 1.', 'error');
+    showToast('Select a category in step 1.', 'error');
     return;
   }
-  const url =
-    '/api/contacts?categoryId=' + encodeURIComponent(id) + '&includeSendStatus=1';
+  const url = '/api/contacts?categoryId=' + encodeURIComponent(id) + '&includeSendStatus=1';
   const res = await api(url);
   const data = await res.json();
   if (!data.success) {
-    showToast(data.error || 'No se pudieron cargar los contactos', 'error');
+    showToast(data.error || 'Could not load contacts', 'error');
     return;
   }
   allContacts = (data.contacts || []).map(function (c) {
@@ -470,14 +509,102 @@ async function loadContactsFromDatabase(showToastOk) {
     document.getElementById('compose-section').classList.add('hidden');
     renderRecipientsTable();
     document.getElementById('total-count').textContent = '0';
-    showToast('No hay contactos guardados en esta categoría.', 'info');
+    showToast('No saved contacts in this category.', 'info');
     return;
   }
   renderRecipientsTable();
   document.getElementById('recipients-section').classList.remove('hidden');
   document.getElementById('compose-section').classList.remove('hidden');
   document.getElementById('total-count').textContent = allContacts.length;
-  if (showToastOk) showToast('Lista actualizada', 'success');
+  if (showToastOk) showToast('List updated', 'success');
+}
+
+function restoreLastCampaignFromStorage() {
+  if (!hasDatabase) return;
+  try {
+    const id = sessionStorage.getItem(LAST_CAMPAIGN_STORAGE);
+    if (!id) return;
+    lastCampaignId = id;
+    document.getElementById('results-section').classList.remove('hidden');
+    document.getElementById('tracking-panel').classList.remove('hidden');
+    document.getElementById('results-meta').innerHTML =
+      '<p>Campaign <code>' + escapeHtml(id) + '</code>. Restored from this browser session.</p>';
+    document.getElementById('results').innerHTML =
+      '<p class="muted small">Per-recipient lines from the last send are not kept after you leave the page. Use <strong>Sent campaigns</strong> or open tracking below.</p>';
+    refreshCampaignTracking();
+  } catch (_) {}
+}
+
+async function loadCampaignHistory() {
+  if (!hasDatabase) return;
+  const tbody = document.getElementById('campaigns-tbody');
+  if (!tbody) return;
+  const cat = getSelectedCategoryId();
+  let url = '/api/campaigns?limit=50';
+  if (cat) {
+    url += '&categoryId=' + encodeURIComponent(cat);
+  }
+  const res = await api(url);
+  const data = await res.json();
+  if (!data.success) {
+    showToast(data.error || 'Could not load campaigns', 'error');
+    return;
+  }
+  campaignsCache = data.campaigns || [];
+  renderCampaignHistory();
+}
+
+function renderCampaignHistory() {
+  const tbody = document.getElementById('campaigns-tbody');
+  const empty = document.getElementById('campaigns-empty');
+  if (!tbody) return;
+  if (!campaignsCache.length) {
+    tbody.innerHTML = '';
+    if (empty) empty.classList.remove('hidden');
+    return;
+  }
+  if (empty) empty.classList.add('hidden');
+  tbody.innerHTML = campaignsCache
+    .map(function (c) {
+      const when = c.created_at ? new Date(c.created_at).toLocaleString() : '—';
+      const raw = c.subject || '';
+      const subj = raw.length
+        ? escapeHtml(raw.length > 80 ? raw.slice(0, 80) + '…' : raw)
+        : '—';
+      return (
+        '<tr class="campaign-row" data-campaign-id="' +
+        escapeHtml(c.id) +
+        '">' +
+        '<td>' +
+        subj +
+        '</td><td>' +
+        escapeHtml(when) +
+        '</td><td>' +
+        (c.totalRecipients ?? 0) +
+        '</td><td>' +
+        (c.openedCount ?? 0) +
+        '</td></tr>'
+      );
+    })
+    .join('');
+
+  tbody.querySelectorAll('.campaign-row').forEach(function (row) {
+    row.addEventListener('click', function () {
+      const id = row.getAttribute('data-campaign-id');
+      if (!id) return;
+      lastCampaignId = id;
+      try {
+        sessionStorage.setItem(LAST_CAMPAIGN_STORAGE, id);
+      } catch (_) {}
+      document.getElementById('results-section').classList.remove('hidden');
+      document.getElementById('tracking-panel').classList.remove('hidden');
+      document.getElementById('results-meta').innerHTML =
+        '<p>Campaign <code>' + escapeHtml(id) + '</code>.</p>';
+      document.getElementById('results').innerHTML =
+        '<p class="muted small">Open tracking for this campaign is below.</p>';
+      refreshCampaignTracking();
+    });
+  });
 }
 
 function badgeClass(st) {
@@ -491,7 +618,7 @@ function formatSendCell(c) {
   const lbl = c.sendLabel || '—';
   let extra = '';
   if (c.openedAt) {
-    extra = '<br><span class="muted small">Abierto ' + new Date(c.openedAt).toLocaleString() + '</span>';
+    extra = '<br><span class="muted small">Opened ' + new Date(c.openedAt).toLocaleString() + '</span>';
   } else if (c.lastEventAt && c.sendStatus !== 'never' && c.sendStatus !== 'none') {
     extra = '<br><span class="muted small">' + new Date(c.lastEventAt).toLocaleString() + '</span>';
   }
@@ -595,12 +722,12 @@ document.getElementById('email-form').addEventListener('submit', async function 
   const body = document.getElementById('body').value.trim();
   let bad = false;
   if (!subject) {
-    document.getElementById('subject-error').textContent = 'El asunto es obligatorio.';
+    document.getElementById('subject-error').textContent = 'Subject is required.';
     document.getElementById('subject-error').classList.remove('hidden');
     bad = true;
   }
   if (!body) {
-    document.getElementById('body-error').textContent = 'El mensaje es obligatorio.';
+    document.getElementById('body-error').textContent = 'Message is required.';
     document.getElementById('body-error').classList.remove('hidden');
     bad = true;
   }
@@ -611,7 +738,7 @@ document.getElementById('email-form').addEventListener('submit', async function 
     selected.push(allContacts[parseInt(cb.getAttribute('data-idx'), 10)]);
   });
   if (!selected.length) {
-    showToast('Selecciona al menos un destinatario.', 'error');
+    showToast('Select at least one recipient.', 'error');
     return;
   }
 
@@ -622,7 +749,7 @@ document.getElementById('email-form').addEventListener('submit', async function 
   if (attachmentInput.files.length > 0) {
     const file = attachmentInput.files[0];
     if (file.size > 4 * 1024 * 1024) {
-      document.getElementById('attachment-error').textContent = 'El archivo supera 4 MB.';
+      document.getElementById('attachment-error').textContent = 'File must be 4 MB or smaller.';
       document.getElementById('attachment-error').classList.remove('hidden');
       return;
     }
@@ -647,7 +774,7 @@ document.getElementById('email-form').addEventListener('submit', async function 
 
 async function sendEmails(body, contacts, categoryId) {
   const btn = document.getElementById('btn-send');
-  btn.textContent = 'Enviando…';
+  btn.textContent = 'Sending…';
   btn.disabled = true;
 
   const payload = {
@@ -664,7 +791,7 @@ async function sendEmails(body, contacts, categoryId) {
   });
   const data = await res.json();
 
-  btn.textContent = 'Enviar correos';
+  btn.textContent = 'Send emails';
   btn.disabled = false;
 
   if (res.status === 401) {
@@ -674,6 +801,11 @@ async function sendEmails(body, contacts, categoryId) {
 
   if (data.success) {
     lastCampaignId = data.campaignId || null;
+    try {
+      if (lastCampaignId) {
+        sessionStorage.setItem(LAST_CAMPAIGN_STORAGE, lastCampaignId);
+      }
+    } catch (_) {}
     const sent = data.results.filter(function (r) {
       return r.status === 'sent';
     }).length;
@@ -685,7 +817,7 @@ async function sendEmails(body, contacts, categoryId) {
       lastCampaignId && data.results.some(function (r) {
         return r.status === 'sent';
       })
-        ? '<p>Campaña <code>' + escapeHtml(lastCampaignId) + '</code>. Las aperturas llegan vía webhook de SendGrid.</p>'
+        ? '<p>Campaign <code>' + escapeHtml(lastCampaignId) + '</code>. Opens are reported via the SendGrid Event Webhook.</p>'
         : '';
 
     document.getElementById('results').innerHTML = data.results
@@ -697,7 +829,7 @@ async function sendEmails(body, contacts, categoryId) {
           (r.name ? escapeHtml(r.name) + ' · ' : '') +
           escapeHtml(r.email) +
           ': ' +
-          (r.status === 'sent' ? 'Enviado' : escapeHtml(r.error || 'Error')) +
+          (r.status === 'sent' ? 'Sent' : escapeHtml(r.error || 'Error')) +
           '</div>'
         );
       })
@@ -712,13 +844,16 @@ async function sendEmails(body, contacts, categoryId) {
       tp.classList.add('hidden');
     }
 
-    showToast('Enviados: ' + sent + (failed ? ' · Fallidos: ' + failed : ''), failed ? 'error' : 'success');
+    showToast('Sent: ' + sent + (failed ? ' · Failed: ' + failed : ''), failed ? 'error' : 'success');
 
     if (hasDatabase && getSelectedCategoryId()) {
       await loadContactsFromDatabase(false);
     }
+    if (hasDatabase) {
+      await loadCampaignHistory();
+    }
   } else {
-    showToast(data.error || 'Error al enviar', 'error');
+    showToast(data.error || 'Send failed', 'error');
   }
 }
 
@@ -729,12 +864,12 @@ async function refreshCampaignTracking() {
   const res = await api('/api/campaigns/' + encodeURIComponent(lastCampaignId) + '/status');
   const data = await res.json();
   if (!data.success) {
-    document.getElementById('tracking-summary').textContent = data.error || 'Sin datos.';
+    document.getElementById('tracking-summary').textContent = data.error || 'No data.';
     return;
   }
   const s = data.summary || {};
   document.getElementById('tracking-summary').textContent =
-    'Total: ' + s.total + ' · Entregados (evento): ' + s.delivered + ' · Abiertos: ' + s.opened;
+    'Total: ' + s.total + ' · Delivered (event): ' + s.delivered + ' · Opened: ' + s.opened;
   document.getElementById('tracking-details').innerHTML = (data.events || [])
     .map(function (ev) {
       return (
@@ -742,7 +877,7 @@ async function refreshCampaignTracking() {
         escapeHtml(ev.recipient_email) +
         '</strong> — ' +
         escapeHtml(ev.status || '') +
-        (ev.opened_at ? ' · Abierto ' + new Date(ev.opened_at).toLocaleString() : '') +
+        (ev.opened_at ? ' · Opened ' + new Date(ev.opened_at).toLocaleString() : '') +
         '</div>'
       );
     })
