@@ -155,7 +155,13 @@ function updateStatus(data) {
   const el = document.getElementById('connection-status');
   const connectedBox = document.getElementById('connected-message');
   const dbPill = document.getElementById('db-pill');
+  const fromEmailInput = document.getElementById('from-email');
   hasDatabase = !!data.database;
+
+  if (fromEmailInput) {
+    fromEmailInput.value = data.email || '';
+    fromEmailInput.placeholder = data.email ? '' : 'FROM_EMAIL is not configured';
+  }
 
   if (dbPill) {
     dbPill.textContent = data.database ? 'Database connected' : 'Database not configured';
@@ -351,12 +357,32 @@ document.getElementById('edit-category-form').addEventListener('submit', async f
   await loadCategories();
 });
 
-document.getElementById('category-select').addEventListener('change', function () {
-  refreshFilesList();
+document.getElementById('category-select').addEventListener('change', handleCategoryChange);
+
+async function handleCategoryChange() {
+  const id = getSelectedCategoryId();
+  await refreshFilesList();
   if (hasDatabase) {
-    loadCampaignHistory();
+    await loadCampaignHistory();
   }
-});
+
+  if (!id || !hasDatabase) {
+    allContacts = [];
+    renderRecipientsTable();
+    document.getElementById('recipients-section').classList.toggle('hidden', !id);
+    document.getElementById('compose-section').classList.add('hidden');
+    document.getElementById('total-count').textContent = '0';
+    return;
+  }
+
+  const tbody = document.getElementById('recipients-tbody');
+  document.getElementById('recipients-section').classList.remove('hidden');
+  document.getElementById('compose-section').classList.add('hidden');
+  tbody.innerHTML = '<tr><td colspan="5" class="muted">Loading saved contacts and send status…</td></tr>';
+  document.getElementById('selected-count').textContent = '0';
+  document.getElementById('total-count').textContent = '0';
+  await loadContactsFromDatabase(false);
+}
 
 document.getElementById('btn-import').addEventListener('click', runImport);
 document.getElementById('btn-add-manual-emails').addEventListener('click', addManualEmails);
@@ -663,7 +689,7 @@ async function loadContactsFromDatabase(showToastOk) {
     document.getElementById('compose-section').classList.add('hidden');
     renderRecipientsTable();
     document.getElementById('total-count').textContent = '0';
-    showToast('No saved contacts in this category.', 'info');
+    if (showToastOk) showToast('No saved contacts in this category.', 'info');
     return;
   }
   renderRecipientsTable();
@@ -781,6 +807,11 @@ function formatSendCell(c) {
 
 function renderRecipientsTable() {
   const tbody = document.getElementById('recipients-tbody');
+  if (!allContacts.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="muted">No contacts saved in this category yet.</td></tr>';
+    updateCount();
+    return;
+  }
   tbody.innerHTML = allContacts
     .map(function (contact, i) {
       return (
