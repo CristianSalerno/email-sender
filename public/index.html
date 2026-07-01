@@ -55,15 +55,152 @@
       </header>
 
       <nav class="app-nav" role="tablist" aria-label="Main navigation">
-        <button type="button" class="app-nav-btn active" data-app-tab="contacts" role="tab" aria-selected="true">Contacts</button>
-        <button type="button" class="app-nav-btn" data-app-tab="send" role="tab" aria-selected="false">Send</button>
+        <button type="button" class="app-nav-btn active" data-app-tab="send" role="tab" aria-selected="true">Send</button>
+        <button type="button" class="app-nav-btn" data-app-tab="lists" role="tab" aria-selected="false">Lists</button>
         <button type="button" class="app-nav-btn hidden" data-app-tab="campaigns" id="nav-campaigns" role="tab" aria-selected="false">Campaigns</button>
         <button type="button" class="app-nav-btn" data-app-tab="settings" role="tab" aria-selected="false">Settings</button>
       </nav>
 
-      <div id="tab-panel-contacts" class="tab-panel active" role="tabpanel">
+      <div id="tab-panel-send" class="tab-panel active" role="tabpanel">
+        <div class="send-wizard">
+          <div class="wizard-steps" role="tablist" aria-label="Send steps">
+            <button type="button" class="wizard-step active" data-send-step="1" id="wizard-step-btn-1">
+              <span class="wizard-step-num">1</span>
+              <span class="wizard-step-label">Audience</span>
+            </button>
+            <div class="wizard-step-line" aria-hidden="true"></div>
+            <button type="button" class="wizard-step" data-send-step="2" id="wizard-step-btn-2">
+              <span class="wizard-step-num">2</span>
+              <span class="wizard-step-label">Message</span>
+            </button>
+          </div>
+
+          <div id="send-step-audience" class="wizard-panel">
+            <section class="card">
+              <div class="page-header">
+                <div>
+                  <h2 class="page-title">Choose your audience</h2>
+                  <p class="muted small">Pick a list and select who should receive this email.</p>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="send-category-select">List / category</label>
+                <select id="send-category-select">
+                  <option value="">— Choose a category —</option>
+                </select>
+                <p class="muted small" style="margin-top:8px">
+                  Don't have contacts yet?
+                  <button type="button" class="link-btn" id="go-to-lists-btn">Import a list</button>
+                </p>
+              </div>
+
+              <div id="audience-empty" class="empty-state muted">
+                Select a category to load contacts, or import a new list first.
+              </div>
+
+              <div id="audience-content" class="hidden">
+                <div class="audience-summary">
+                  <span><strong id="audience-category-name">—</strong></span>
+                  <span class="audience-summary-sep">·</span>
+                  <span><span id="selected-count">0</span> of <span id="total-count">0</span> selected</span>
+                </div>
+
+                <div class="toolbar">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-select-all">Select all</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-select-none">None</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-load-saved-contacts">Reload</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-recipients">Refresh status</button>
+                </div>
+
+                <div class="table-wrap table-scroll">
+                  <table class="data-table" id="recipients-table">
+                    <thead>
+                      <tr>
+                        <th class="col-check"></th>
+                        <th>Email</th>
+                        <th>Name</th>
+                        <th>Company</th>
+                        <th>Last send</th>
+                      </tr>
+                    </thead>
+                    <tbody id="recipients-tbody"></tbody>
+                  </table>
+                </div>
+
+                <div class="wizard-actions">
+                  <button type="button" class="btn btn-primary" id="btn-continue-to-message" disabled>
+                    Continue to message →
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div id="send-step-message" class="wizard-panel hidden">
+            <section class="card" id="compose-section">
+              <div class="audience-chip" id="audience-chip">
+                <span id="chip-recipients">0 recipients</span>
+                <span class="audience-chip-sep">·</span>
+                <span id="chip-category">—</span>
+                <button type="button" class="link-btn" id="btn-edit-audience">Edit audience</button>
+              </div>
+
+              <h2 class="card-title">Write your message</h2>
+              <form id="email-form" novalidate>
+                <div class="form-group">
+                  <label for="from-email">From</label>
+                  <input type="email" id="from-email" readonly class="input-readonly">
+                </div>
+                <div class="form-group">
+                  <label for="subject">Subject <span class="req">*</span></label>
+                  <input type="text" id="subject" placeholder="Email subject" required>
+                  <p id="subject-error" class="field-error hidden" role="alert"></p>
+                </div>
+                <div class="form-group">
+                  <label for="body">Message <span class="req">*</span></label>
+                  <div class="message-help" aria-label="Message formatting reference">
+                    <p class="message-help-title">Personalization &amp; formatting</p>
+                    <ul class="message-help-list">
+                      <li><strong>Personalization:</strong> <code>{{name}}</code>, <code>{{company}}</code>, <code>{{email}}</code></li>
+                      <li><strong>Markdown:</strong> <code>**bold**</code>, <code>*italic*</code>, lists, headings</li>
+                    </ul>
+                  </div>
+                  <div class="editor-container">
+                    <div class="editor-tabs">
+                      <button type="button" class="tab-btn active" data-tab="write">Write</button>
+                      <button type="button" class="tab-btn" data-tab="preview">Preview</button>
+                    </div>
+                    <textarea id="body" rows="10" autocomplete="off" required></textarea>
+                    <div id="preview" class="preview-box hidden"></div>
+                  </div>
+                  <p id="body-error" class="field-error hidden" role="alert"></p>
+                </div>
+                <div class="form-group">
+                  <label for="attachment">Attachment (optional)</label>
+                  <input type="file" id="attachment">
+                  <p id="attachment-error" class="field-error hidden" role="alert"></p>
+                </div>
+                <div class="wizard-actions wizard-actions-split">
+                  <button type="button" class="btn btn-secondary" id="btn-back-to-audience">← Back to audience</button>
+                  <button type="submit" class="btn btn-primary btn-send" id="btn-send">Send emails</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="card hidden" id="results-section">
+              <h2 class="card-title">Send results</h2>
+              <div id="results-meta" class="muted small"></div>
+              <div id="results" class="results-list"></div>
+              <p class="muted small send-results-hint">Open the <strong>Campaigns</strong> tab for delivery and open tracking.</p>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-panel-lists" class="tab-panel hidden" role="tabpanel">
         <section class="card" id="import-section">
-          <h2 class="card-title">Category and contacts</h2>
+          <h2 class="card-title">Import contacts</h2>
           <p class="muted">Create or choose a category, then import an Excel/TXT file or add contacts manually.</p>
 
           <div class="segmented" role="radiogroup" aria-label="Category type">
@@ -129,6 +266,10 @@
             <p id="manual-emails-error" class="field-error hidden" role="alert"></p>
           </div>
           <button type="button" class="btn btn-secondary btn-sm" id="btn-add-manual-emails">Add contacts to category</button>
+
+          <div class="lists-footer">
+            <p class="muted small">When you're done, go to <button type="button" class="link-btn" id="go-to-send-btn">Send</button> to choose recipients and compose your email.</p>
+          </div>
         </section>
 
         <section class="card hidden" id="manage-categories-section">
@@ -143,87 +284,6 @@
             </table>
           </div>
           <p id="categories-empty" class="muted small hidden">No categories yet. Import a file to create the first one.</p>
-        </section>
-
-        <section class="card hidden" id="recipients-section">
-          <h2 class="card-title">Recipients</h2>
-          <p class="muted small">Select a category above to load saved contacts and their latest send status.</p>
-          <div class="toolbar">
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-select-all">Select all</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-select-none">None</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-load-saved-contacts">Reload contacts</button>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-recipients">Refresh send status</button>
-          </div>
-          <div class="table-wrap table-scroll">
-            <table class="data-table" id="recipients-table">
-              <thead>
-                <tr>
-                  <th class="col-check"></th>
-                  <th>Email</th>
-                  <th>Name</th>
-                  <th>Company</th>
-                  <th>Last send</th>
-                </tr>
-              </thead>
-              <tbody id="recipients-tbody"></tbody>
-            </table>
-          </div>
-          <p class="summary">Selected: <span id="selected-count">0</span> / <span id="total-count">0</span></p>
-        </section>
-      </div>
-
-      <div id="tab-panel-send" class="tab-panel hidden" role="tabpanel">
-        <section class="card hidden" id="compose-section">
-          <h2 class="card-title">Compose and send</h2>
-          <form id="email-form" novalidate>
-            <div class="form-group">
-              <label for="from-email">From</label>
-              <input type="email" id="from-email" readonly class="input-readonly">
-            </div>
-            <div class="form-group">
-              <label for="subject">Subject <span class="req">*</span></label>
-              <input type="text" id="subject" placeholder="Email subject" required>
-              <p id="subject-error" class="field-error hidden" role="alert"></p>
-            </div>
-            <div class="form-group">
-              <label for="body">Message <span class="req">*</span></label>
-              <div class="message-help" aria-label="Message formatting reference">
-                <p class="message-help-title">Reference (always visible while you write)</p>
-                <ul class="message-help-list">
-                  <li><strong>Personalization:</strong> <code>{{name}}</code>, <code>{{company}}</code>, <code>{{email}}</code></li>
-                  <li><strong>Markdown:</strong> <code>**bold**</code>, <code>*italic*</code>, lists, headings</li>
-                </ul>
-              </div>
-              <div class="editor-container">
-                <div class="editor-tabs">
-                  <button type="button" class="tab-btn active" data-tab="write">Write</button>
-                  <button type="button" class="tab-btn" data-tab="preview">Preview</button>
-                </div>
-                <textarea id="body" rows="10" autocomplete="off" required></textarea>
-                <div id="preview" class="preview-box hidden"></div>
-              </div>
-              <p id="body-error" class="field-error hidden" role="alert"></p>
-            </div>
-            <div class="form-group">
-              <label for="attachment">Attachment (optional)</label>
-              <input type="file" id="attachment">
-              <p id="attachment-error" class="field-error hidden" role="alert"></p>
-            </div>
-            <button type="submit" class="btn btn-primary btn-send" id="btn-send">Send emails</button>
-          </form>
-        </section>
-
-        <section class="card hidden" id="results-section">
-          <h2 class="card-title">Send results</h2>
-          <div id="results-meta" class="muted small"></div>
-          <div id="results" class="results-list"></div>
-          <p class="muted small send-results-hint">Open the <strong>Campaigns</strong> tab for delivery and open tracking.</p>
-        </section>
-
-        <section class="card send-empty-state" id="send-empty-state">
-          <h2 class="card-title">Compose and send</h2>
-          <p class="muted">Load contacts from the <strong>Contacts</strong> tab first, then return here to compose your email.</p>
-          <button type="button" class="btn btn-secondary btn-sm" id="go-to-contacts-btn">Go to Contacts</button>
         </section>
       </div>
 

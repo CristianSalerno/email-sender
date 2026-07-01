@@ -7,7 +7,85 @@ let campaignsCache = [];
 
 const LAST_CAMPAIGN_STORAGE = 'email-sender:lastCampaignId';
 
-let activeAppTab = 'contacts';
+let activeAppTab = 'send';
+let sendWizardStep = 1;
+
+function getSendCategoryId() {
+  const sel = document.getElementById('send-category-select');
+  return sel && sel.value ? sel.value : '';
+}
+
+function goToSendStep(step) {
+  if (step === 2) {
+    const checked = document.querySelectorAll('#recipients-tbody input:checked').length;
+    if (!checked) {
+      showToast('Select at least one recipient.', 'error');
+      return;
+    }
+  }
+  sendWizardStep = step;
+  const audiencePanel = document.getElementById('send-step-audience');
+  const messagePanel = document.getElementById('send-step-message');
+  if (audiencePanel) audiencePanel.classList.toggle('hidden', step !== 1);
+  if (messagePanel) messagePanel.classList.toggle('hidden', step !== 2);
+  document.querySelectorAll('.wizard-step').forEach(function (btn) {
+    const stepNum = parseInt(btn.getAttribute('data-send-step'), 10);
+    btn.classList.toggle('active', stepNum === step);
+    btn.classList.toggle('done', stepNum < step);
+  });
+  updateAudienceSummary();
+  if (step === 2) updateCount();
+}
+
+function updateAudienceSummary() {
+  const categoryId = getSendCategoryId();
+  const cat = categories.find(function (c) {
+    return c.id === categoryId;
+  });
+  const name = cat ? cat.name : '—';
+  const nameEl = document.getElementById('audience-category-name');
+  const chipCat = document.getElementById('chip-category');
+  if (nameEl) nameEl.textContent = name;
+  if (chipCat) chipCat.textContent = name;
+}
+
+function syncAudienceUI() {
+  const categoryId = getSendCategoryId();
+  const hasContacts = allContacts.length > 0;
+  const empty = document.getElementById('audience-empty');
+  const content = document.getElementById('audience-content');
+
+  if (!categoryId) {
+    if (empty) {
+      empty.textContent = 'Select a category to load contacts, or import a new list first.';
+      empty.classList.remove('hidden');
+    }
+    if (content) content.classList.add('hidden');
+    return;
+  }
+
+  if (!hasContacts) {
+    if (empty) {
+      empty.textContent =
+        'No contacts in this category yet. Import a list or add contacts in the Lists tab.';
+      empty.classList.remove('hidden');
+    }
+    if (content) content.classList.add('hidden');
+    return;
+  }
+
+  if (empty) empty.classList.add('hidden');
+  if (content) content.classList.remove('hidden');
+  updateAudienceSummary();
+  updateCount();
+}
+
+function syncCategorySelects(value) {
+  const listsSel = document.getElementById('category-select');
+  const sendSel = document.getElementById('send-category-select');
+  if (listsSel && value) listsSel.value = value;
+  if (sendSel && value) sendSel.value = value;
+}
 
 function switchAppTab(tabId, options) {
   if (tabId === 'campaigns' && !hasDatabase) {
@@ -35,11 +113,7 @@ function switchAppTab(tabId, options) {
 }
 
 function syncSendTabUI() {
-  const hasContacts = allContacts.length > 0;
-  const compose = document.getElementById('compose-section');
-  const empty = document.getElementById('send-empty-state');
-  if (compose) compose.classList.toggle('hidden', !hasContacts);
-  if (empty) empty.classList.toggle('hidden', hasContacts);
+  syncAudienceUI();
 }
 
 function formatOpenRate(opened, total) {
@@ -172,7 +246,8 @@ function showApp(authenticated) {
   document.body.classList.toggle('auth-layout', !authenticated);
   document.body.classList.toggle('app-layout', authenticated);
   if (authenticated) {
-    syncSendTabUI();
+    syncAudienceUI();
+    goToSendStep(1);
   }
 }
 
@@ -241,7 +316,7 @@ function updateStatus(data) {
     navCampaigns.classList.toggle('hidden', !data.database);
   }
   if (!data.database && activeAppTab === 'campaigns') {
-    switchAppTab('contacts');
+    switchAppTab('send');
   }
 
   const webhookHint = document.getElementById('webhook-hint');
@@ -335,22 +410,39 @@ async function loadCategories() {
   }
   const data = await res.json();
   categories = data.categories || [];
-  const sel = document.getElementById('category-select');
-  const current = sel.value;
-  sel.innerHTML =
+  const options =
     '<option value="">— Choose a category —</option>' +
     categories
       .map(function (c) {
         return '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
       })
       .join('');
+
+  const listsSel = document.getElementById('category-select');
+  const sendSel = document.getElementById('send-category-select');
+  const listsCurrent = listsSel ? listsSel.value : '';
+  const sendCurrent = sendSel ? sendSel.value : '';
+
+  if (listsSel) listsSel.innerHTML = options;
+  if (sendSel) sendSel.innerHTML = options;
+
   if (
-    current &&
+    listsCurrent &&
     categories.some(function (c) {
-      return c.id === current;
-    })
+      return c.id === listsCurrent;
+    }) &&
+    listsSel
   ) {
-    sel.value = current;
+    listsSel.value = listsCurrent;
+  }
+  if (
+    sendCurrent &&
+    categories.some(function (c) {
+      return c.id === sendCurrent;
+    }) &&
+    sendSel
+  ) {
+    sendSel.value = sendCurrent;
   }
   renderCategoriesTable();
 }
@@ -425,18 +517,20 @@ async function deleteCategory(id, name) {
   }
 
   const selectedId = getSelectedCategoryId();
+  const sendSelectedId = getSendCategoryId();
   await loadCategories();
-  if (selectedId === id) {
+  if (selectedId === id || sendSelectedId === id) {
     allContacts = [];
     campaignsCache = [];
-    document.getElementById('category-select').value = '';
+    if (document.getElementById('category-select')) document.getElementById('category-select').value = '';
+    if (document.getElementById('send-category-select')) document.getElementById('send-category-select').value = '';
     document.getElementById('files-list').classList.add('hidden');
-    document.getElementById('recipients-section').classList.add('hidden');
-    syncSendTabUI();
-    document.getElementById('campaigns-tbody').innerHTML = '';
-    document.getElementById('campaigns-empty').classList.remove('hidden');
     document.getElementById('selected-count').textContent = '0';
     document.getElementById('total-count').textContent = '0';
+    syncAudienceUI();
+    goToSendStep(1);
+    document.getElementById('campaigns-tbody').innerHTML = '';
+    document.getElementById('campaigns-empty').classList.remove('hidden');
   }
   showToast('Category deleted', 'success');
 }
@@ -472,29 +566,35 @@ document.getElementById('edit-category-form').addEventListener('submit', async f
 });
 
 document.getElementById('category-select').addEventListener('change', handleCategoryChange);
+document.getElementById('send-category-select').addEventListener('change', handleSendCategoryChange);
 
 async function handleCategoryChange() {
   const id = getSelectedCategoryId();
+  const sendSel = document.getElementById('send-category-select');
+  if (sendSel && id) sendSel.value = id;
   await refreshFilesList();
-  if (hasDatabase) {
-    await loadCampaignHistory();
-  }
+}
+
+async function handleSendCategoryChange() {
+  const id = getSendCategoryId();
+  const listsSel = document.getElementById('category-select');
+  if (listsSel && id) listsSel.value = id;
+  await refreshFilesList();
 
   if (!id || !hasDatabase) {
     allContacts = [];
     renderRecipientsTable();
-    document.getElementById('recipients-section').classList.toggle('hidden', !id);
-    syncSendTabUI();
     document.getElementById('total-count').textContent = '0';
+    syncAudienceUI();
+    goToSendStep(1);
     return;
   }
 
   const tbody = document.getElementById('recipients-tbody');
-  document.getElementById('recipients-section').classList.remove('hidden');
-  syncSendTabUI();
-  tbody.innerHTML = '<tr><td colspan="5" class="muted">Loading saved contacts and send status…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="5" class="muted">Loading contacts…</td></tr>';
   document.getElementById('selected-count').textContent = '0';
   document.getElementById('total-count').textContent = '0';
+  syncAudienceUI();
   await loadContactsFromDatabase(false);
 }
 
@@ -535,7 +635,7 @@ function runImport() {
     if (data.success) {
       if (data.persisted && data.category && data.category.id) {
         await loadCategories();
-        document.getElementById('category-select').value = data.category.id;
+        syncCategorySelects(data.category.id);
         document.querySelector('input[name="import-mode"][value="existing"]').checked = true;
         syncImportModeUI();
         document.getElementById('new-category-name').value = '';
@@ -556,14 +656,17 @@ function runImport() {
       });
       const note = data.persisted ? 'Saved to the database.' : 'In memory only (configure Supabase to persist).';
       info.innerHTML = '<strong>' + allContacts.length + ' contacts</strong> · ' + note;
+      const importedCategoryId = data.category?.id || getSelectedCategoryId();
+      if (importedCategoryId) syncCategorySelects(importedCategoryId);
       renderRecipientsTable();
-      document.getElementById('recipients-section').classList.remove('hidden');
-      syncSendTabUI();
       document.getElementById('total-count').textContent = allContacts.length;
-      if (data.persisted && getSelectedCategoryId()) {
+      syncAudienceUI();
+      if (data.persisted && getSendCategoryId()) {
         await loadContactsFromDatabase(false);
       }
-      showToast('Import successful', 'success');
+      switchAppTab('send');
+      goToSendStep(1);
+      showToast('Import successful — choose recipients and continue', 'success');
     } else {
       info.classList.add('hidden');
       const g = document.getElementById('import-global-error');
@@ -654,12 +757,14 @@ async function addManualEmails() {
 
   if (data.persisted && data.category && data.category.id) {
     await loadCategories();
-    document.getElementById('category-select').value = data.category.id;
+    syncCategorySelects(data.category.id);
     document.querySelector('input[name="import-mode"][value="existing"]').checked = true;
     syncImportModeUI();
     document.getElementById('new-category-name').value = '';
     await refreshFilesList();
     await loadContactsFromDatabase(false);
+    switchAppTab('send');
+    goToSendStep(1);
   } else {
     allContacts = (data.contacts || []).map(function (c) {
       return {
@@ -674,8 +779,7 @@ async function addManualEmails() {
       };
     });
     renderRecipientsTable();
-    document.getElementById('recipients-section').classList.remove('hidden');
-    syncSendTabUI();
+    syncAudienceUI();
     document.getElementById('total-count').textContent = allContacts.length;
   }
 
@@ -774,9 +878,9 @@ document.getElementById('refresh-campaigns-btn').addEventListener('click', funct
 });
 
 async function loadContactsFromDatabase(showToastOk) {
-  const id = getSelectedCategoryId();
+  const id = getSendCategoryId();
   if (!id) {
-    showToast('Select a category in step 1.', 'error');
+    showToast('Select a category first.', 'error');
     return;
   }
   const url = '/api/contacts?categoryId=' + encodeURIComponent(id) + '&includeSendStatus=1';
@@ -798,19 +902,14 @@ async function loadContactsFromDatabase(showToastOk) {
       openedAt: c.openedAt || null
     };
   });
-  if (!allContacts.length) {
-    document.getElementById('recipients-section').classList.remove('hidden');
-    renderRecipientsTable();
-    document.getElementById('total-count').textContent = '0';
-    syncSendTabUI();
-    if (showToastOk) showToast('No saved contacts in this category.', 'info');
-    return;
-  }
   renderRecipientsTable();
-  document.getElementById('recipients-section').classList.remove('hidden');
   document.getElementById('total-count').textContent = allContacts.length;
-  syncSendTabUI();
-  if (showToastOk) showToast('List updated', 'success');
+  syncAudienceUI();
+  if (!allContacts.length && showToastOk) {
+    showToast('No saved contacts in this category.', 'info');
+  } else if (showToastOk) {
+    showToast('List updated', 'success');
+  }
 }
 
 function restoreLastCampaignFromStorage() {
@@ -1084,7 +1183,17 @@ function renderRecipientsTable() {
 
 function updateCount() {
   const checked = document.querySelectorAll('#recipients-tbody input:checked').length;
-  document.getElementById('selected-count').textContent = checked;
+  const total = allContacts.length;
+  const selectedEl = document.getElementById('selected-count');
+  const totalEl = document.getElementById('total-count');
+  if (selectedEl) selectedEl.textContent = checked;
+  if (totalEl) totalEl.textContent = total;
+  const chip = document.getElementById('chip-recipients');
+  if (chip) {
+    chip.textContent = checked + (checked === 1 ? ' recipient' : ' recipients');
+  }
+  const continueBtn = document.getElementById('btn-continue-to-message');
+  if (continueBtn) continueBtn.disabled = checked === 0;
 }
 
 document.getElementById('btn-select-all').addEventListener('click', function () {
@@ -1173,7 +1282,7 @@ document.getElementById('email-form').addEventListener('submit', async function 
     return;
   }
 
-  const categoryId = getSelectedCategoryId() || undefined;
+  const categoryId = getSendCategoryId() || undefined;
   const attachmentInput = document.getElementById('attachment');
   document.getElementById('attachment-error').classList.add('hidden');
 
@@ -1275,7 +1384,7 @@ async function sendEmails(body, contacts, categoryId) {
 
     showToast('Sent: ' + sent + (failed ? ' · Failed: ' + failed : ''), failed ? 'error' : 'success');
 
-    if (hasDatabase && getSelectedCategoryId()) {
+    if (hasDatabase && getSendCategoryId()) {
       await loadContactsFromDatabase(false);
     }
   } else {
@@ -1375,8 +1484,35 @@ document.querySelectorAll('.app-nav-btn').forEach(function (btn) {
   });
 });
 
-document.getElementById('go-to-contacts-btn').addEventListener('click', function () {
-  switchAppTab('contacts');
+document.getElementById('go-to-lists-btn').addEventListener('click', function () {
+  switchAppTab('lists');
+});
+
+document.getElementById('go-to-send-btn').addEventListener('click', function () {
+  switchAppTab('send');
+});
+
+document.getElementById('btn-continue-to-message').addEventListener('click', function () {
+  goToSendStep(2);
+});
+
+document.getElementById('btn-back-to-audience').addEventListener('click', function () {
+  goToSendStep(1);
+});
+
+document.getElementById('btn-edit-audience').addEventListener('click', function () {
+  goToSendStep(1);
+});
+
+document.querySelectorAll('.wizard-step').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    const step = parseInt(btn.getAttribute('data-send-step'), 10);
+    if (step === 1) {
+      goToSendStep(1);
+    } else if (step === 2) {
+      goToSendStep(2);
+    }
+  });
 });
 
 document.getElementById('campaign-detail-back').addEventListener('click', hideCampaignDetail);
