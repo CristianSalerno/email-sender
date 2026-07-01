@@ -21,6 +21,31 @@ function getSupabase() {
   return createClient(url, key);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function pingSupabase(maxAttempts = 3) {
+  const supabase = getSupabase();
+  if (!supabase) {
+    return { ok: false, configured: false, error: 'Supabase not configured' };
+  }
+
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const { error } = await supabase.from('categories').select('id').limit(1);
+    if (!error) {
+      return { ok: true, configured: true, attempt };
+    }
+    lastError = error.message;
+    if (attempt < maxAttempts) {
+      await sleep(5000 * attempt);
+    }
+  }
+
+  return { ok: false, configured: true, error: lastError, attempt: maxAttempts };
+}
+
 function sanitizeFilename(name) {
   const base = String(name || '').split(/[/\\]/).pop();
   return base.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 180) || 'file';
@@ -348,6 +373,22 @@ app.get('/api/sendgrid/events', (req, res) => {
     );
 });
 
+app.get('/api/keepalive', async (req, res) => {
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const auth = req.headers.authorization;
+    if (auth !== `Bearer ${cronSecret}`) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    }
+  }
+
+  const result = await pingSupabase();
+  res.status(result.ok ? 200 : 503).json({
+    ...result,
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.post('/api/sendgrid/events', async (req, res) => {
   try {
     const supabase = getSupabase();
@@ -410,12 +451,15 @@ api.post('/logout', (req, res) => {
   res.json({ success: true });
 });
 
-api.get('/status', (req, res) => {
+api.get('/status', async (req, res) => {
   const hasConfig = !!(process.env.SENDGRID_API_KEY && process.env.FROM_EMAIL);
+  const dbPing = await pingSupabase(2);
   res.json({
     connected: hasConfig,
     email: hasConfig ? process.env.FROM_EMAIL : null,
-    database: !!getSupabase()
+    database: dbPing.ok,
+    databaseConfigured: dbPing.configured,
+    databaseError: dbPing.ok ? null : dbPing.error || null
   });
 });
 

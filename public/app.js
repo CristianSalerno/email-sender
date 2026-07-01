@@ -164,9 +164,19 @@ function updateStatus(data) {
   }
 
   if (dbPill) {
-    dbPill.textContent = data.database ? 'Database connected' : 'Database not configured';
-    dbPill.classList.toggle('pill-ok', !!data.database);
-    dbPill.classList.toggle('pill-warn', !data.database);
+    if (data.database) {
+      dbPill.textContent = 'Database connected';
+      dbPill.classList.add('pill-ok');
+      dbPill.classList.remove('pill-warn');
+    } else if (data.databaseConfigured && data.databaseError) {
+      dbPill.textContent = 'Database waking up — retry in 1–2 min';
+      dbPill.classList.remove('pill-ok');
+      dbPill.classList.add('pill-warn');
+    } else {
+      dbPill.textContent = 'Database not configured';
+      dbPill.classList.remove('pill-ok');
+      dbPill.classList.add('pill-warn');
+    }
   }
 
   const manage = document.getElementById('manage-categories-section');

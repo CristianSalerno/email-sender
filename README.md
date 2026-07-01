@@ -51,6 +51,14 @@ Incluye al menos eventos **processed**, **delivered**, **open** (y opcionalmente
 1. En **SQL Editor**, ejecuta [`supabase/schema.sql`](supabase/schema.sql).
 2. En **Storage**, crea un bucket **privado** cuyo nombre sea exactamente `SUPABASE_STORAGE_BUCKET`.
 
+### Supabase: evitar pausa por inactividad (plan gratuito)
+
+En el plan gratuito, Supabase **pausa el proyecto tras ~7 días sin actividad**. SendGrid no se pausa; lo que falla es la base de datos (contactos, campañas, tracking).
+
+- Tras pulsar **Resume** en el dashboard de Supabase, espera **1–3 minutos** antes de usar la app; las peticiones fallan mientras el proyecto arranca.
+- Este proyecto incluye un **cron diario** en Vercel (`/api/keepalive`) que consulta Supabase para mantener el proyecto activo. Tras desplegar, en Vercel → **Settings → Environment Variables** añade `CRON_SECRET` (genera uno con `openssl rand -hex 32`).
+- Para un cliente en producción, valora **Supabase Pro** (~25 USD/mes): el proyecto no se pausa automáticamente.
+
 ## Usage
 
 ```bash
