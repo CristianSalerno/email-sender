@@ -122,6 +122,7 @@ async function initSession() {
 function showApp(authenticated) {
   document.getElementById('login-section').classList.toggle('hidden', authenticated);
   document.getElementById('app-sections').classList.toggle('hidden', !authenticated);
+  document.body.classList.toggle('auth-layout', !authenticated);
 }
 
 async function afterLogin() {

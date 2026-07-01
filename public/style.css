@@ -63,6 +63,54 @@ body {
 
 .container { max-width: 900px; margin: 0 auto; }
 
+body.auth-layout {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: clamp(48px, 12vh, 120px);
+}
+body.auth-layout .container {
+  max-width: 420px;
+  width: 100%;
+}
+body.auth-layout .app-header {
+  display: none;
+}
+
+.login-card {
+  padding: 32px 28px;
+}
+.login-brand {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.login-kicker {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.login-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.login-lead {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.login-form .form-group:last-of-type {
+  margin-bottom: 20px;
+}
+.btn-block {
+  width: 100%;
+}
+
 .app-header {
   margin-bottom: 28px;
   color: #f8fafc;

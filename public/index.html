@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="auth-layout">
   <div id="loading-screen" class="loading-screen">
     <div class="spinner"></div>
     <p>Loading…</p>
@@ -26,16 +26,19 @@
       </div>
     </header>
 
-    <section class="card" id="login-section">
-      <h2 class="card-title">Sign in</h2>
-      <p class="muted">Use the password set on the server (<code>APP_LOGIN_PASSWORD</code>).</p>
-      <form id="login-form" novalidate>
+    <section class="card login-card" id="login-section">
+      <div class="login-brand">
+        <p class="login-kicker">B2B outreach</p>
+        <h2 class="login-title">Email Sender</h2>
+        <p class="login-lead">Enter your password to access the dashboard.</p>
+      </div>
+      <form id="login-form" class="login-form" novalidate>
         <div class="form-group">
           <label for="login-password">Password</label>
-          <input type="password" id="login-password" autocomplete="current-password" required>
+          <input type="password" id="login-password" placeholder="Enter your password" autocomplete="current-password" required>
           <p id="login-error" class="field-error hidden" role="alert"></p>
         </div>
-        <button type="submit" class="btn btn-primary">Sign in</button>
+        <button type="submit" class="btn btn-primary btn-block">Sign in</button>
       </form>
     </section>
 
