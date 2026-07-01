@@ -7,6 +7,53 @@ let campaignsCache = [];
 
 const LAST_CAMPAIGN_STORAGE = 'email-sender:lastCampaignId';
 
+let activeAppTab = 'contacts';
+
+function switchAppTab(tabId, options) {
+  if (tabId === 'campaigns' && !hasDatabase) {
+    showToast('Campaigns require a connected database.', 'info');
+    return;
+  }
+  activeAppTab = tabId;
+  const panelId = 'tab-panel-' + tabId;
+  document.querySelectorAll('.app-nav-btn').forEach(function (btn) {
+    const isActive = btn.getAttribute('data-app-tab') === tabId;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+  document.querySelectorAll('.tab-panel').forEach(function (panel) {
+    const isActive = panel.id === panelId;
+    panel.classList.toggle('hidden', !isActive);
+    panel.classList.toggle('active', isActive);
+  });
+  if (tabId === 'campaigns') {
+    if (!options || !options.keepDetail) {
+      hideCampaignDetail();
+    }
+    loadCampaignHistory();
+  }
+}
+
+function syncSendTabUI() {
+  const hasContacts = allContacts.length > 0;
+  const compose = document.getElementById('compose-section');
+  const empty = document.getElementById('send-empty-state');
+  if (compose) compose.classList.toggle('hidden', !hasContacts);
+  if (empty) empty.classList.toggle('hidden', hasContacts);
+}
+
+function formatOpenRate(opened, total) {
+  if (!total) return '—';
+  return Math.round((opened / total) * 100) + '%';
+}
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString();
+}
+
 function api(path, options = {}) {
   return fetch(path, {
     credentials: 'include',
@@ -123,6 +170,10 @@ function showApp(authenticated) {
   document.getElementById('login-section').classList.toggle('hidden', authenticated);
   document.getElementById('app-sections').classList.toggle('hidden', !authenticated);
   document.body.classList.toggle('auth-layout', !authenticated);
+  document.body.classList.toggle('app-layout', authenticated);
+  if (authenticated) {
+    syncSendTabUI();
+  }
 }
 
 async function afterLogin() {
@@ -185,9 +236,12 @@ function updateStatus(data) {
     manage.classList.toggle('hidden', !data.database);
   }
 
-  const campaignSection = document.getElementById('campaign-history-section');
-  if (campaignSection) {
-    campaignSection.classList.toggle('hidden', !data.database);
+  const navCampaigns = document.getElementById('nav-campaigns');
+  if (navCampaigns) {
+    navCampaigns.classList.toggle('hidden', !data.database);
+  }
+  if (!data.database && activeAppTab === 'campaigns') {
+    switchAppTab('contacts');
   }
 
   const webhookHint = document.getElementById('webhook-hint');
@@ -378,7 +432,7 @@ async function deleteCategory(id, name) {
     document.getElementById('category-select').value = '';
     document.getElementById('files-list').classList.add('hidden');
     document.getElementById('recipients-section').classList.add('hidden');
-    document.getElementById('compose-section').classList.add('hidden');
+    syncSendTabUI();
     document.getElementById('campaigns-tbody').innerHTML = '';
     document.getElementById('campaigns-empty').classList.remove('hidden');
     document.getElementById('selected-count').textContent = '0';
@@ -430,14 +484,14 @@ async function handleCategoryChange() {
     allContacts = [];
     renderRecipientsTable();
     document.getElementById('recipients-section').classList.toggle('hidden', !id);
-    document.getElementById('compose-section').classList.add('hidden');
+    syncSendTabUI();
     document.getElementById('total-count').textContent = '0';
     return;
   }
 
   const tbody = document.getElementById('recipients-tbody');
   document.getElementById('recipients-section').classList.remove('hidden');
-  document.getElementById('compose-section').classList.add('hidden');
+  syncSendTabUI();
   tbody.innerHTML = '<tr><td colspan="5" class="muted">Loading saved contacts and send status…</td></tr>';
   document.getElementById('selected-count').textContent = '0';
   document.getElementById('total-count').textContent = '0';
@@ -504,7 +558,7 @@ function runImport() {
       info.innerHTML = '<strong>' + allContacts.length + ' contacts</strong> · ' + note;
       renderRecipientsTable();
       document.getElementById('recipients-section').classList.remove('hidden');
-      document.getElementById('compose-section').classList.remove('hidden');
+      syncSendTabUI();
       document.getElementById('total-count').textContent = allContacts.length;
       if (data.persisted && getSelectedCategoryId()) {
         await loadContactsFromDatabase(false);
@@ -621,7 +675,7 @@ async function addManualEmails() {
     });
     renderRecipientsTable();
     document.getElementById('recipients-section').classList.remove('hidden');
-    document.getElementById('compose-section').classList.remove('hidden');
+    syncSendTabUI();
     document.getElementById('total-count').textContent = allContacts.length;
   }
 
@@ -746,16 +800,16 @@ async function loadContactsFromDatabase(showToastOk) {
   });
   if (!allContacts.length) {
     document.getElementById('recipients-section').classList.remove('hidden');
-    document.getElementById('compose-section').classList.add('hidden');
     renderRecipientsTable();
     document.getElementById('total-count').textContent = '0';
+    syncSendTabUI();
     if (showToastOk) showToast('No saved contacts in this category.', 'info');
     return;
   }
   renderRecipientsTable();
   document.getElementById('recipients-section').classList.remove('hidden');
-  document.getElementById('compose-section').classList.remove('hidden');
   document.getElementById('total-count').textContent = allContacts.length;
+  syncSendTabUI();
   if (showToastOk) showToast('List updated', 'success');
 }
 
@@ -765,14 +819,27 @@ function restoreLastCampaignFromStorage() {
     const id = sessionStorage.getItem(LAST_CAMPAIGN_STORAGE);
     if (!id) return;
     lastCampaignId = id;
-    document.getElementById('results-section').classList.remove('hidden');
-    document.getElementById('tracking-panel').classList.remove('hidden');
-    document.getElementById('results-meta').innerHTML =
-      '<p>Campaign <code>' + escapeHtml(id) + '</code>. Restored from this browser session.</p>';
-    document.getElementById('results').innerHTML =
-      '<p class="muted small">Per-recipient lines from the last send are not kept after you leave the page. Use <strong>Sent campaigns</strong> or open tracking below.</p>';
-    refreshCampaignTracking();
+    switchAppTab('campaigns', { keepDetail: true });
+    showCampaignDetail(id);
   } catch (_) {}
+}
+
+function updateCampaignStats() {
+  const totalCampaigns = campaignsCache.length;
+  let totalRecipients = 0;
+  let totalOpens = 0;
+  campaignsCache.forEach(function (c) {
+    totalRecipients += c.totalRecipients ?? 0;
+    totalOpens += c.openedCount ?? 0;
+  });
+  const statCampaigns = document.getElementById('stat-total-campaigns');
+  const statRecipients = document.getElementById('stat-total-recipients');
+  const statOpens = document.getElementById('stat-total-opens');
+  const statRate = document.getElementById('stat-open-rate');
+  if (statCampaigns) statCampaigns.textContent = String(totalCampaigns);
+  if (statRecipients) statRecipients.textContent = String(totalRecipients);
+  if (statOpens) statOpens.textContent = String(totalOpens);
+  if (statRate) statRate.textContent = formatOpenRate(totalOpens, totalRecipients);
 }
 
 async function loadCampaignHistory() {
@@ -794,6 +861,7 @@ function renderCampaignHistory() {
   const tbody = document.getElementById('campaigns-tbody');
   const empty = document.getElementById('campaigns-empty');
   if (!tbody) return;
+  updateCampaignStats();
   if (!campaignsCache.length) {
     tbody.innerHTML = '';
     if (empty) empty.classList.remove('hidden');
@@ -812,6 +880,8 @@ function renderCampaignHistory() {
         ? escapeHtml(raw.length > 80 ? raw.slice(0, 80) + '…' : raw)
         : '—';
       const shortId = c.id ? String(c.id).slice(0, 8) : '';
+      const recipients = c.totalRecipients ?? 0;
+      const opened = c.openedCount ?? 0;
       return (
         '<tr class="campaign-row" data-campaign-id="' +
         escapeHtml(c.id) +
@@ -823,11 +893,16 @@ function renderCampaignHistory() {
         escapeHtml(categoryName) +
         '</td><td>' +
         when +
-        '</td><td>' +
-        (c.totalRecipients ?? 0) +
-        '</td><td>' +
-        (c.openedCount ?? 0) +
+        '</td><td class="col-num">' +
+        recipients +
+        '</td><td class="col-num">' +
+        opened +
+        '</td><td class="col-num">' +
+        formatOpenRate(opened, recipients) +
         '</td><td class="col-actions">' +
+        '<button type="button" class="link-btn" data-view-campaign="' +
+        escapeHtml(c.id) +
+        '">View</button> ' +
         '<button type="button" class="link-btn link-danger" data-delete-campaign="' +
         escapeHtml(c.id) +
         '" data-campaign-subject="' +
@@ -848,23 +923,59 @@ function renderCampaignHistory() {
     });
   });
 
+  tbody.querySelectorAll('[data-view-campaign]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const id = btn.getAttribute('data-view-campaign');
+      if (id) showCampaignDetail(id);
+    });
+  });
+
   tbody.querySelectorAll('.campaign-row').forEach(function (row) {
     row.addEventListener('click', function () {
       const id = row.getAttribute('data-campaign-id');
-      if (!id) return;
-      lastCampaignId = id;
-      try {
-        sessionStorage.setItem(LAST_CAMPAIGN_STORAGE, id);
-      } catch (_) {}
-      document.getElementById('results-section').classList.remove('hidden');
-      document.getElementById('tracking-panel').classList.remove('hidden');
-      document.getElementById('results-meta').innerHTML =
-        '<p>Campaign <code>' + escapeHtml(id) + '</code>.</p>';
-      document.getElementById('results').innerHTML =
-        '<p class="muted small">Open tracking for this campaign is below.</p>';
-      refreshCampaignTracking();
+      if (id) showCampaignDetail(id);
     });
   });
+}
+
+function showCampaignDetail(campaignId) {
+  if (!campaignId) return;
+  const campaign = campaignsCache.find(function (c) {
+    return c.id === campaignId;
+  });
+  lastCampaignId = campaignId;
+  try {
+    sessionStorage.setItem(LAST_CAMPAIGN_STORAGE, campaignId);
+  } catch (_) {}
+
+  const listView = document.getElementById('campaigns-list-view');
+  const detailView = document.getElementById('campaign-detail-view');
+  if (listView) listView.classList.add('hidden');
+  if (detailView) detailView.classList.remove('hidden');
+
+  const subjectEl = document.getElementById('campaign-detail-subject');
+  const metaEl = document.getElementById('campaign-detail-meta');
+  const rawSubject = campaign?.subject || 'Untitled campaign';
+  if (subjectEl) subjectEl.textContent = rawSubject;
+
+  if (metaEl) {
+    const category = categories.find(function (cat) {
+      return cat.id === campaign?.category_id;
+    });
+    const categoryName = category ? category.name : campaign?.category_id ? 'Deleted category' : '—';
+    const sentAt = campaign?.created_at ? formatDateTime(campaign.created_at) : '—';
+    metaEl.textContent = categoryName + ' · Sent ' + sentAt;
+  }
+
+  refreshCampaignTracking();
+}
+
+function hideCampaignDetail() {
+  const listView = document.getElementById('campaigns-list-view');
+  const detailView = document.getElementById('campaign-detail-view');
+  if (listView) listView.classList.remove('hidden');
+  if (detailView) detailView.classList.add('hidden');
 }
 
 async function deleteCampaign(id, subject) {
@@ -890,9 +1001,10 @@ async function deleteCampaign(id, subject) {
     try {
       sessionStorage.removeItem(LAST_CAMPAIGN_STORAGE);
     } catch (_) {}
-    document.getElementById('tracking-panel').classList.add('hidden');
+    hideCampaignDetail();
     document.getElementById('results-meta').innerHTML = '';
     document.getElementById('results').innerHTML = '';
+    document.getElementById('results-section').classList.add('hidden');
   }
 
   campaignsCache = campaignsCache.filter(function (campaign) {
@@ -1136,7 +1248,7 @@ async function sendEmails(body, contacts, categoryId) {
       lastCampaignId && data.results.some(function (r) {
         return r.status === 'sent';
       })
-        ? '<p>Campaign <code>' + escapeHtml(lastCampaignId) + '</code>. Opens are reported via the SendGrid Event Webhook.</p>'
+        ? '<p>Send completed. Tracking is available in the <strong>Campaigns</strong> tab.</p>'
         : '';
 
     document.getElementById('results').innerHTML = data.results
@@ -1155,21 +1267,16 @@ async function sendEmails(body, contacts, categoryId) {
       .join('');
 
     document.getElementById('results-section').classList.remove('hidden');
-    const tp = document.getElementById('tracking-panel');
-    if (lastCampaignId) {
-      tp.classList.remove('hidden');
-      await refreshCampaignTracking();
-    } else {
-      tp.classList.add('hidden');
+    if (hasDatabase && lastCampaignId) {
+      await loadCampaignHistory();
+      switchAppTab('campaigns', { keepDetail: true });
+      showCampaignDetail(lastCampaignId);
     }
 
     showToast('Sent: ' + sent + (failed ? ' · Failed: ' + failed : ''), failed ? 'error' : 'success');
 
     if (hasDatabase && getSelectedCategoryId()) {
       await loadContactsFromDatabase(false);
-    }
-    if (hasDatabase) {
-      await loadCampaignHistory();
     }
   } else {
     showToast(data.error || 'Send failed', 'error');
@@ -1183,25 +1290,96 @@ async function refreshCampaignTracking() {
   const res = await api('/api/campaigns/' + encodeURIComponent(lastCampaignId) + '/status');
   const data = await res.json();
   if (!data.success) {
-    document.getElementById('tracking-summary').textContent = data.error || 'No data.';
+    showToast(data.error || 'Could not load tracking data.', 'error');
     return;
   }
   const s = data.summary || {};
-  document.getElementById('tracking-summary').textContent =
-    'Total: ' + s.total + ' · Delivered (event): ' + s.delivered + ' · Opened: ' + s.opened;
-  document.getElementById('tracking-details').innerHTML = (data.events || [])
-    .map(function (ev) {
-      return (
-        '<div class="tracking-row"><strong>' +
-        escapeHtml(ev.recipient_email) +
-        '</strong> — ' +
-        escapeHtml(ev.status || '') +
-        (ev.opened_at ? ' · Opened ' + new Date(ev.opened_at).toLocaleString() : '') +
-        '</div>'
-      );
-    })
-    .join('');
+  const events = data.events || [];
+
+  const totalEl = document.getElementById('detail-stat-total');
+  const deliveredEl = document.getElementById('detail-stat-delivered');
+  const openedEl = document.getElementById('detail-stat-opened');
+  const rateEl = document.getElementById('detail-stat-rate');
+  if (totalEl) totalEl.textContent = String(s.total ?? 0);
+  if (deliveredEl) deliveredEl.textContent = String(s.delivered ?? 0);
+  if (openedEl) openedEl.textContent = String(s.opened ?? 0);
+  if (rateEl) rateEl.textContent = formatOpenRate(s.opened ?? 0, s.total ?? 0);
+
+  const openedEvents = events.filter(function (ev) {
+    return ev.opened_at;
+  });
+  const opensTbody = document.getElementById('opens-tbody');
+  const opensEmpty = document.getElementById('opens-empty');
+  if (opensTbody) {
+    if (!openedEvents.length) {
+      opensTbody.innerHTML = '';
+      if (opensEmpty) opensEmpty.classList.remove('hidden');
+    } else {
+      if (opensEmpty) opensEmpty.classList.add('hidden');
+      opensTbody.innerHTML = openedEvents
+        .map(function (ev) {
+          return (
+            '<tr><td>' +
+            escapeHtml(ev.recipient_email) +
+            '</td><td><span class="badge ' +
+            badgeClass(ev.status) +
+            '">' +
+            escapeHtml(ev.status || 'opened') +
+            '</span></td><td>' +
+            formatDateTime(ev.opened_at) +
+            '</td><td>' +
+            formatDateTime(ev.delivered_at) +
+            '</td></tr>'
+          );
+        })
+        .join('');
+    }
+  }
+
+  const recipientsTbody = document.getElementById('recipients-status-tbody');
+  if (recipientsTbody) {
+    if (!events.length) {
+      recipientsTbody.innerHTML =
+        '<tr><td colspan="4" class="muted">No delivery data yet. Tracking updates when SendGrid reports events.</td></tr>';
+    } else {
+      recipientsTbody.innerHTML = events
+        .map(function (ev) {
+          return (
+            '<tr><td>' +
+            escapeHtml(ev.recipient_email) +
+            '</td><td><span class="badge ' +
+            badgeClass(ev.status) +
+            '">' +
+            escapeHtml(ev.status || '—') +
+            '</span></td><td>' +
+            formatDateTime(ev.delivered_at) +
+            '</td><td>' +
+            (ev.opened_at ? formatDateTime(ev.opened_at) : '—') +
+            '</td></tr>'
+          );
+        })
+        .join('');
+    }
+  }
+
+  const trackingSummary = document.getElementById('tracking-summary');
+  if (trackingSummary) {
+    trackingSummary.textContent =
+      'Total: ' + s.total + ' · Delivered: ' + s.delivered + ' · Opened: ' + s.opened;
+  }
 }
+
+document.querySelectorAll('.app-nav-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    switchAppTab(btn.getAttribute('data-app-tab'));
+  });
+});
+
+document.getElementById('go-to-contacts-btn').addEventListener('click', function () {
+  switchAppTab('contacts');
+});
+
+document.getElementById('campaign-detail-back').addEventListener('click', hideCampaignDetail);
 
 syncImportModeUI();
 initSession();
