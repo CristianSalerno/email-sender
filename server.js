@@ -54,15 +54,15 @@ Rules:
 - Do not invent fake statistics or claims.
 - Return only valid JSON matching the requested schema.`;
 
-async function callGemini(userPrompt, jsonSchemaHint) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    const err = new Error('GEMINI_API_KEY not configured');
-    err.code = 'AI_NOT_CONFIGURED';
-    throw err;
-  }
+const GEMINI_MODELS = [
+  process.env.GEMINI_MODEL,
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash'
+].filter(Boolean);
 
-  const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+async function callGeminiOnce(model, userPrompt, jsonSchemaHint) {
+  const apiKey = process.env.GEMINI_API_KEY;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   const response = await fetch(url, {
@@ -74,13 +74,17 @@ async function callGemini(userPrompt, jsonSchemaHint) {
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: GEMINI_SYSTEM }] },
       contents: [{ parts: [{ text: userPrompt + '\n\n' + jsonSchemaHint }] }],
-      generationConfig: { responseMimeType: 'application/json' }
+      generationConfig: {
+        responseMimeType: 'application/json',
+        maxOutputTokens: 2048,
+        temperature: 0.7
+      }
     })
   });
 
   const raw = await response.text();
   if (!response.ok) {
-    let message = raw.slice(0, 300);
+    let message = raw.slice(0, 400);
     try {
       const parsed = JSON.parse(raw);
       message = parsed.error?.message || message;
@@ -89,6 +93,7 @@ async function callGemini(userPrompt, jsonSchemaHint) {
     }
     const err = new Error(message || `Gemini API error ${response.status}`);
     err.status = response.status;
+    err.model = model;
     throw err;
   }
 
@@ -96,6 +101,39 @@ async function callGemini(userPrompt, jsonSchemaHint) {
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('Empty response from Gemini');
   return JSON.parse(text);
+}
+
+async function callGemini(userPrompt, jsonSchemaHint) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    const err = new Error('GEMINI_API_KEY not configured');
+    err.code = 'AI_NOT_CONFIGURED';
+    throw err;
+  }
+
+  const models = [...new Set(GEMINI_MODELS)];
+  let lastError = null;
+
+  for (const model of models) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await callGeminiOnce(model, userPrompt, jsonSchemaHint);
+      } catch (err) {
+        lastError = err;
+        const retryable = err.status === 429 || err.status === 503;
+        if (retryable && attempt < 3) {
+          await sleep(2000 * attempt);
+          continue;
+        }
+        if (err.status === 429 || err.status === 404 || err.status === 400) {
+          break;
+        }
+        throw err;
+      }
+    }
+  }
+
+  throw lastError || new Error('Gemini request failed');
 }
 
 function toneLabel(tone) {
@@ -603,7 +641,15 @@ ${String(body).trim()}`,
     if (err.status === 429) {
       return res.status(429).json({
         success: false,
-        error: 'Gemini rate limit reached. Wait a minute and try again (free tier).'
+        error:
+          'Gemini quota exceeded. Create a new API key at aistudio.google.com/apikey, verify it has free-tier quota, and set GEMINI_API_KEY in Vercel. Details: ' +
+          (err.message || 'rate limit')
+      });
+    }
+    if (err.status === 400 || err.status === 403 || err.status === 404) {
+      return res.status(502).json({
+        success: false,
+        error: 'Gemini API rejected the request. Check your API key and model. Details: ' + (err.message || 'invalid request')
       });
     }
     return res.status(500).json({ success: false, error: err.message });
