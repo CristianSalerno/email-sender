@@ -377,6 +377,49 @@ input:focus, textarea:focus, select:focus {
   color: var(--text);
 }
 
+.ai-panel {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius);
+}
+.ai-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.ai-pill { font-size: 0.7rem; }
+.ai-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ai-subjects {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ai-subject-btn {
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--text);
+  transition: border-color 0.15s, background 0.15s;
+}
+.ai-subject-btn:hover {
+  border-color: var(--accent);
+  background: #f8fafc;
+}
+
 .editor-container {
   border: 1px solid var(--border);
   border-radius: 8px;

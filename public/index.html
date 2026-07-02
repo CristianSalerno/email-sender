@@ -168,6 +168,45 @@
 
       <section class="card hidden" id="compose-section">
         <h2 class="card-title">3. Compose and send</h2>
+
+        <div id="ai-panel" class="ai-panel hidden">
+          <div class="ai-panel-header">
+            <h3 class="sub-title">AI assistant</h3>
+            <span class="pill pill-ok ai-pill">Gemini</span>
+          </div>
+          <p class="muted small">Describe your email and let AI draft it, suggest subjects, or improve your text. Free tier via Google AI Studio.</p>
+          <div class="form-group">
+            <label for="ai-brief">What should the email say?</label>
+            <textarea id="ai-brief" rows="3" placeholder="e.g. Introduce our organic chocolate to coffee shops in Berlin, invite them to try samples and schedule a call"></textarea>
+          </div>
+          <div class="ai-options">
+            <div class="form-group">
+              <label for="ai-tone">Tone</label>
+              <select id="ai-tone">
+                <option value="professional">Professional</option>
+                <option value="friendly">Friendly</option>
+                <option value="direct">Direct</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="ai-language">Language</label>
+              <select id="ai-language">
+                <option value="auto">Auto</option>
+                <option value="es">Spanish</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn btn-secondary btn-sm" id="ai-draft-btn">Generate email</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="ai-subjects-btn">Suggest subjects</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="ai-improve-btn">Improve message</button>
+          </div>
+          <div id="ai-subjects-list" class="ai-subjects hidden"></div>
+          <p id="ai-error" class="field-error hidden" role="alert"></p>
+        </div>
+        <p id="ai-not-configured" class="muted small hidden">AI assistant: add <code>GEMINI_API_KEY</code> in Vercel to enable drafting with Gemini (free tier).</p>
+
         <form id="email-form" novalidate>
           <div class="form-group">
             <label for="from-email">From</label>

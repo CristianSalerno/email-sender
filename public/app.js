@@ -3,6 +3,7 @@ let lastCampaignId = null;
 let categories = [];
 let pendingFile = null;
 let hasDatabase = false;
+let hasAi = false;
 let campaignsCache = [];
 
 const LAST_CAMPAIGN_STORAGE = 'email-sender:lastCampaignId';
@@ -157,6 +158,12 @@ function updateStatus(data) {
   const dbPill = document.getElementById('db-pill');
   const fromEmailInput = document.getElementById('from-email');
   hasDatabase = !!data.database;
+  hasAi = !!data.ai;
+
+  const aiPanel = document.getElementById('ai-panel');
+  const aiNotConfigured = document.getElementById('ai-not-configured');
+  if (aiPanel) aiPanel.classList.toggle('hidden', !hasAi);
+  if (aiNotConfigured) aiNotConfigured.classList.toggle('hidden', hasAi);
 
   if (fromEmailInput) {
     fromEmailInput.value = data.email || '';
@@ -1024,7 +1031,7 @@ fileInput.addEventListener('change', function (e) {
 });
 
 function clearComposeErrors() {
-  ['subject-error', 'body-error', 'attachment-error'].forEach(function (id) {
+  ['subject-error', 'body-error', 'attachment-error', 'ai-error'].forEach(function (id) {
     const n = document.getElementById(id);
     if (n) {
       n.textContent = '';
@@ -1032,6 +1039,98 @@ function clearComposeErrors() {
     }
   });
 }
+
+function setAiLoading(loading) {
+  ['ai-draft-btn', 'ai-subjects-btn', 'ai-improve-btn'].forEach(function (id) {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = loading;
+  });
+}
+
+function getAiOptions() {
+  return {
+    brief: (document.getElementById('ai-brief') && document.getElementById('ai-brief').value.trim()) || '',
+    tone: (document.getElementById('ai-tone') && document.getElementById('ai-tone').value) || 'professional',
+    language: (document.getElementById('ai-language') && document.getElementById('ai-language').value) || 'auto'
+  };
+}
+
+async function runAiCompose(action) {
+  const errEl = document.getElementById('ai-error');
+  const subjectsEl = document.getElementById('ai-subjects-list');
+  if (errEl) {
+    errEl.textContent = '';
+    errEl.classList.add('hidden');
+  }
+  if (subjectsEl) {
+    subjectsEl.innerHTML = '';
+    subjectsEl.classList.add('hidden');
+  }
+
+  const opts = getAiOptions();
+  const subject = document.getElementById('subject').value.trim();
+  const body = document.getElementById('body').value.trim();
+
+  setAiLoading(true);
+  try {
+    const res = await api('/api/ai/compose', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: action,
+        brief: opts.brief,
+        tone: opts.tone,
+        language: opts.language,
+        subject: subject,
+        body: body
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'AI request failed');
+    }
+
+    if (action === 'subjects' && data.subjects && data.subjects.length) {
+      subjectsEl.classList.remove('hidden');
+      data.subjects.forEach(function (s) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ai-subject-btn';
+        btn.textContent = s;
+        btn.addEventListener('click', function () {
+          document.getElementById('subject').value = s;
+          showToast('Subject applied', 'success');
+        });
+        subjectsEl.appendChild(btn);
+      });
+      showToast('Subject suggestions ready — click one to use it', 'success');
+      return;
+    }
+
+    if (data.subject) document.getElementById('subject').value = data.subject;
+    if (data.body) {
+      document.getElementById('body').value = data.body;
+      const preview = document.getElementById('preview');
+      if (preview && !preview.classList.contains('hidden') && window.marked) {
+        preview.innerHTML = marked.parse(data.body);
+      }
+    }
+    showToast(action === 'improve' ? 'Message improved' : 'Email drafted', 'success');
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('hidden');
+    }
+    showToast(err.message, 'error');
+  } finally {
+    setAiLoading(false);
+  }
+}
+
+['ai-draft-btn', 'ai-subjects-btn', 'ai-improve-btn'].forEach(function (id, idx) {
+  const btn = document.getElementById(id);
+  const actions = ['draft', 'subjects', 'improve'];
+  if (btn) btn.addEventListener('click', function () { runAiCompose(actions[idx]); });
+});
 
 document.getElementById('email-form').addEventListener('submit', async function (e) {
   e.preventDefault();

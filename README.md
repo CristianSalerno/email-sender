@@ -37,6 +37,17 @@ En cada sitio usas el **mismo listado de variables**; lo que cambia son los **va
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave **service_role** (secreta) en **Project Settings → API**. Necesaria para Storage e inserts desde el servidor. **No** uses la clave `anon` ni claves “publishable” en el cliente público para este backend. |
 | `SUPABASE_STORAGE_BUCKET` | Nombre del bucket privado en Supabase Storage (ej. `contact-uploads`). Debe existir y coincidir con el nombre que creaste en el dashboard. |
 | `PORT` | Solo local; por defecto `3000`. |
+| `GEMINI_API_KEY` | Opcional. API key gratuita de [Google AI Studio](https://aistudio.google.com/apikey) para redactar emails con IA en la pantalla de composición. |
+| `GEMINI_MODEL` | Opcional. Por defecto `gemini-2.0-flash` (plan gratuito). |
+
+### Asistente IA (Gemini, gratis)
+
+1. Entra en [Google AI Studio](https://aistudio.google.com/apikey) con tu cuenta Google.
+2. Crea una **API key** (plan gratuito: ~15 req/min en Flash, suficiente para redactar emails).
+3. Añade `GEMINI_API_KEY` en Vercel (o en `.env` local) y redeploy.
+4. En **Compose**, usa *Generate email*, *Suggest subjects* o *Improve message*.
+
+**Importante:** no actives facturación en el proyecto de Google si solo quieres el tier gratuito.
 
 ### SendGrid Event Webhook (aperturas)
 

@@ -46,6 +46,73 @@ async function pingSupabase(maxAttempts = 3) {
   return { ok: false, configured: true, error: lastError, attempt: maxAttempts };
 }
 
+const GEMINI_SYSTEM = `You help write B2B outreach emails for a small business email tool.
+Rules:
+- Use Markdown for formatting (**bold**, *italic*, lists, short headings if needed).
+- Include personalization placeholders where natural: {{name}}, {{company}}, {{email}}.
+- Keep emails concise, professional, and easy to scan.
+- Do not invent fake statistics or claims.
+- Return only valid JSON matching the requested schema.`;
+
+async function callGemini(userPrompt, jsonSchemaHint) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    const err = new Error('GEMINI_API_KEY not configured');
+    err.code = 'AI_NOT_CONFIGURED';
+    throw err;
+  }
+
+  const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey
+    },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: GEMINI_SYSTEM }] },
+      contents: [{ parts: [{ text: userPrompt + '\n\n' + jsonSchemaHint }] }],
+      generationConfig: { responseMimeType: 'application/json' }
+    })
+  });
+
+  const raw = await response.text();
+  if (!response.ok) {
+    let message = raw.slice(0, 300);
+    try {
+      const parsed = JSON.parse(raw);
+      message = parsed.error?.message || message;
+    } catch {
+      /* keep slice */
+    }
+    const err = new Error(message || `Gemini API error ${response.status}`);
+    err.status = response.status;
+    throw err;
+  }
+
+  const data = JSON.parse(raw);
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Empty response from Gemini');
+  return JSON.parse(text);
+}
+
+function toneLabel(tone) {
+  const map = {
+    professional: 'professional and polished',
+    friendly: 'warm and approachable',
+    direct: 'short and direct'
+  };
+  return map[tone] || map.professional;
+}
+
+function languageLabel(language) {
+  if (language === 'es') return 'Spanish';
+  if (language === 'en') return 'English';
+  return 'the same language as the brief';
+}
+
 function sanitizeFilename(name) {
   const base = String(name || '').split(/[/\\]/).pop();
   return base.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 180) || 'file';
@@ -459,8 +526,88 @@ api.get('/status', async (req, res) => {
     email: hasConfig ? process.env.FROM_EMAIL : null,
     database: dbPing.ok,
     databaseConfigured: dbPing.configured,
-    databaseError: dbPing.ok ? null : dbPing.error || null
+    databaseError: dbPing.ok ? null : dbPing.error || null,
+    ai: !!process.env.GEMINI_API_KEY
   });
+});
+
+api.post('/ai/compose', async (req, res) => {
+  try {
+    const { action, brief, tone, language, subject, body } = req.body || {};
+    const validActions = ['draft', 'subjects', 'improve'];
+    if (!validActions.includes(action)) {
+      return res.status(400).json({ success: false, error: 'Invalid action' });
+    }
+
+    const briefText = String(brief || '').trim();
+    const toneText = toneLabel(tone);
+    const langText = languageLabel(language);
+
+    if (action === 'draft' && !briefText) {
+      return res.status(400).json({ success: false, error: 'Describe what the email should say.' });
+    }
+    if (action === 'improve' && !String(body || '').trim()) {
+      return res.status(400).json({ success: false, error: 'Write a message first to improve it.' });
+    }
+
+    if (action === 'draft') {
+      const result = await callGemini(
+        `Write a complete B2B outreach email.
+Brief: ${briefText}
+Tone: ${toneText}
+Language: ${langText}`,
+        'Return JSON: {"subject":"string","body":"string"}'
+      );
+      return res.json({ success: true, subject: result.subject || '', body: result.body || '' });
+    }
+
+    if (action === 'subjects') {
+      const context = [
+        briefText ? `Brief: ${briefText}` : '',
+        String(body || '').trim() ? `Current message:\n${String(body).trim()}` : '',
+        `Tone: ${toneText}`,
+        `Language: ${langText}`
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      if (!context.trim()) {
+        return res.status(400).json({ success: false, error: 'Add a brief or message to suggest subjects.' });
+      }
+
+      const result = await callGemini(
+        `Suggest 5 compelling email subject lines for this B2B outreach.\n${context}`,
+        'Return JSON: {"subjects":["string","string","string","string","string"]}'
+      );
+      const subjects = Array.isArray(result.subjects) ? result.subjects.filter(Boolean).slice(0, 5) : [];
+      return res.json({ success: true, subjects });
+    }
+
+    const result = await callGemini(
+      `Improve this B2B outreach email. Keep placeholders {{name}}, {{company}}, {{email}} if present.
+Tone: ${toneText}
+Language: ${langText}
+Current subject: ${String(subject || '').trim() || '(none)'}
+Current message:
+${String(body).trim()}`,
+      'Return JSON: {"subject":"string","body":"string"}'
+    );
+    return res.json({ success: true, subject: result.subject || subject || '', body: result.body || '' });
+  } catch (err) {
+    if (err.code === 'AI_NOT_CONFIGURED') {
+      return res.status(503).json({
+        success: false,
+        error: 'AI not configured. Add GEMINI_API_KEY in Vercel environment variables.'
+      });
+    }
+    if (err.status === 429) {
+      return res.status(429).json({
+        success: false,
+        error: 'Gemini rate limit reached. Wait a minute and try again (free tier).'
+      });
+    }
+    return res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 api.post('/configure', (req, res) => {
