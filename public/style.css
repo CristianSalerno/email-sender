@@ -42,6 +42,32 @@ body {
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
 }
+.spinner-sm {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #cbd5e1;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+.inline-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  margin-top: 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.ai-panel-busy .ai-panel-fields {
+  opacity: 0.55;
+  pointer-events: none;
+}
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .toast {

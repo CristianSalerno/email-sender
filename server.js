@@ -115,17 +115,17 @@ async function callGemini(userPrompt, jsonSchemaHint) {
   let lastError = null;
 
   for (const model of models) {
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 4; attempt++) {
       try {
         return await callGeminiOnce(model, userPrompt, jsonSchemaHint);
       } catch (err) {
         lastError = err;
         const retryable = err.status === 429 || err.status === 503;
-        if (retryable && attempt < 3) {
-          await sleep(2000 * attempt);
+        if (retryable && attempt < 4) {
+          await sleep(2000 * Math.pow(2, attempt - 1));
           continue;
         }
-        if (err.status === 429 || err.status === 404 || err.status === 400) {
+        if (err.status === 429 || err.status === 503 || err.status === 404 || err.status === 400) {
           break;
         }
         throw err;
@@ -644,6 +644,14 @@ ${String(body).trim()}`,
         error:
           'Gemini quota exceeded. Create a new API key at aistudio.google.com/apikey, verify it has free-tier quota, and set GEMINI_API_KEY in Vercel. Details: ' +
           (err.message || 'rate limit')
+      });
+    }
+    if (err.status === 503) {
+      return res.status(503).json({
+        success: false,
+        error:
+          'Gemini is under high demand right now. Wait 30 seconds and try again — the app already retried automatically. Details: ' +
+          (err.message || 'service unavailable')
       });
     }
     if (err.status === 400 || err.status === 403 || err.status === 404) {

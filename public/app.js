@@ -10,6 +10,13 @@ const LAST_CAMPAIGN_STORAGE = 'email-sender:lastCampaignId';
 
 let activeAppTab = 'send';
 let sendWizardStep = 1;
+let audienceLoading = false;
+
+const AI_ACTION_LABELS = {
+  draft: { loading: 'Generating email…', button: 'Generate email' },
+  subjects: { loading: 'Suggesting subjects…', button: 'Suggest subjects' },
+  improve: { loading: 'Improving message…', button: 'Improve message' }
+};
 
 function getSendCategoryId() {
   const sel = document.getElementById('send-category-select');
@@ -51,6 +58,8 @@ function updateAudienceSummary() {
 }
 
 function syncAudienceUI() {
+  if (audienceLoading) return;
+
   const categoryId = getSendCategoryId();
   const hasContacts = allContacts.length > 0;
   const empty = document.getElementById('audience-empty');
@@ -79,6 +88,37 @@ function syncAudienceUI() {
   if (content) content.classList.remove('hidden');
   updateAudienceSummary();
   updateCount();
+}
+
+function setAudienceLoading(loading) {
+  audienceLoading = loading;
+  const loadingEl = document.getElementById('audience-loading');
+  const empty = document.getElementById('audience-empty');
+  const content = document.getElementById('audience-content');
+  const select = document.getElementById('send-category-select');
+  const reloadBtn = document.getElementById('btn-load-saved-contacts');
+  const refreshBtn = document.getElementById('btn-refresh-recipients');
+
+  if (loadingEl) loadingEl.classList.toggle('hidden', !loading);
+  if (select) select.disabled = loading;
+  if (reloadBtn) {
+    reloadBtn.disabled = loading;
+    if (!reloadBtn.dataset.defaultLabel) reloadBtn.dataset.defaultLabel = reloadBtn.textContent;
+    reloadBtn.textContent = loading ? 'Loading…' : reloadBtn.dataset.defaultLabel;
+  }
+  if (refreshBtn) {
+    refreshBtn.disabled = loading;
+    if (!refreshBtn.dataset.defaultLabel) refreshBtn.dataset.defaultLabel = refreshBtn.textContent;
+    refreshBtn.textContent = loading ? 'Loading…' : refreshBtn.dataset.defaultLabel;
+  }
+
+  if (loading) {
+    if (empty) empty.classList.add('hidden');
+    if (content) content.classList.add('hidden');
+    return;
+  }
+
+  syncAudienceUI();
 }
 
 function syncCategorySelects(value) {
@@ -591,17 +631,15 @@ async function handleSendCategoryChange() {
   if (!id || !hasDatabase) {
     allContacts = [];
     renderRecipientsTable();
+    document.getElementById('selected-count').textContent = '0';
     document.getElementById('total-count').textContent = '0';
     syncAudienceUI();
     goToSendStep(1);
     return;
   }
 
-  const tbody = document.getElementById('recipients-tbody');
-  tbody.innerHTML = '<tr><td colspan="5" class="muted">Loading contacts…</td></tr>';
   document.getElementById('selected-count').textContent = '0';
   document.getElementById('total-count').textContent = '0';
-  syncAudienceUI();
   await loadContactsFromDatabase(false);
 }
 
@@ -890,32 +928,37 @@ async function loadContactsFromDatabase(showToastOk) {
     showToast('Select a category first.', 'error');
     return;
   }
-  const url = '/api/contacts?categoryId=' + encodeURIComponent(id) + '&includeSendStatus=1';
-  const res = await api(url);
-  const data = await res.json();
-  if (!data.success) {
-    showToast(data.error || 'Could not load contacts', 'error');
-    return;
-  }
-  allContacts = (data.contacts || []).map(function (c) {
-    return {
-      id: c.id,
-      email: c.email,
-      name: c.name || '',
-      company: c.company || '',
-      sendLabel: c.sendLabel || '—',
-      sendStatus: c.sendStatus || 'none',
-      lastEventAt: c.lastEventAt || null,
-      openedAt: c.openedAt || null
-    };
-  });
-  renderRecipientsTable();
-  document.getElementById('total-count').textContent = allContacts.length;
-  syncAudienceUI();
-  if (!allContacts.length && showToastOk) {
-    showToast('No saved contacts in this category.', 'info');
-  } else if (showToastOk) {
-    showToast('List updated', 'success');
+
+  setAudienceLoading(true);
+  try {
+    const url = '/api/contacts?categoryId=' + encodeURIComponent(id) + '&includeSendStatus=1';
+    const res = await api(url);
+    const data = await res.json();
+    if (!data.success) {
+      showToast(data.error || 'Could not load contacts', 'error');
+      return;
+    }
+    allContacts = (data.contacts || []).map(function (c) {
+      return {
+        id: c.id,
+        email: c.email,
+        name: c.name || '',
+        company: c.company || '',
+        sendLabel: c.sendLabel || '—',
+        sendStatus: c.sendStatus || 'none',
+        lastEventAt: c.lastEventAt || null,
+        openedAt: c.openedAt || null
+      };
+    });
+    renderRecipientsTable();
+    document.getElementById('total-count').textContent = allContacts.length;
+    if (!allContacts.length && showToastOk) {
+      showToast('No saved contacts in this category.', 'info');
+    } else if (showToastOk) {
+      showToast('List updated', 'success');
+    }
+  } finally {
+    setAudienceLoading(false);
   }
 }
 
@@ -1262,10 +1305,27 @@ function clearComposeErrors() {
   });
 }
 
-function setAiLoading(loading) {
+function setAiLoading(loading, action) {
+  const panel = document.getElementById('ai-panel');
+  const loadingEl = document.getElementById('ai-loading');
+  const loadingText = document.getElementById('ai-loading-text');
+  const labels = action ? AI_ACTION_LABELS[action] : null;
+
+  if (panel) panel.classList.toggle('ai-panel-busy', loading);
+  if (loadingEl) loadingEl.classList.toggle('hidden', !loading);
+  if (loadingText && labels) loadingText.textContent = labels.loading;
+
   ['ai-draft-btn', 'ai-subjects-btn', 'ai-improve-btn'].forEach(function (id) {
     const btn = document.getElementById(id);
-    if (btn) btn.disabled = loading;
+    if (!btn) return;
+    btn.disabled = loading;
+    const key = id.replace('ai-', '').replace('-btn', '');
+    const label = AI_ACTION_LABELS[key];
+    if (label && loading && action === key) {
+      btn.textContent = label.loading;
+    } else if (label) {
+      btn.textContent = label.button;
+    }
   });
 }
 
@@ -1293,7 +1353,7 @@ async function runAiCompose(action) {
   const subject = document.getElementById('subject').value.trim();
   const body = document.getElementById('body').value.trim();
 
-  setAiLoading(true);
+  setAiLoading(true, action);
   try {
     const res = await api('/api/ai/compose', {
       method: 'POST',
@@ -1344,7 +1404,7 @@ async function runAiCompose(action) {
     }
     showToast(err.message, 'error');
   } finally {
-    setAiLoading(false);
+    setAiLoading(false, action);
   }
 }
 
