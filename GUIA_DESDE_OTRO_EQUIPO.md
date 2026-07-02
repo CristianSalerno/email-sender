@@ -1,83 +1,83 @@
-# Guía rápida — Email Sender (desde cualquier PC)
+# Quick guide — Email Sender (from any computer)
 
-Puedes abrir este archivo en tu portátil u otra máquina tras clonar el repo. **No** incluye secretos: solo nombres de variables y pasos.
+Open this file on your laptop or another machine after cloning the repo. It does **not** include secrets—only variable names and steps.
 
-## 1. Clonar el repositorio
+## 1. Clone the repository
 
 ```bash
-git clone <URL_DE_TU_REPO_GITHUB>
+git clone <YOUR_GITHUB_REPO_URL>
 cd email-sender
-git checkout staging    # entorno de prueba en Vercel
-# o: git checkout master
+git checkout staging    # test environment on Vercel
+# or: git checkout master
 ```
 
-Sustituye `<URL_DE_TU_REPO_GITHUB>` por la URL HTTPS o SSH que veas en GitHub (**Code**).
+Replace `<YOUR_GITHUB_REPO_URL>` with the HTTPS or SSH URL from GitHub (**Code**).
 
-## 2. Arranque local
+## 2. Local setup
 
 ```bash
 npm install
 cp .env.example .env
 ```
 
-Edita **`.env`** y rellena al menos:
+Edit **`.env`** and fill in at least:
 
-| Variable | Uso |
-| -------- | --- |
-| `APP_LOGIN_PASSWORD` | Contraseña para entrar en http://localhost:3000 |
-| `SESSION_SECRET` | Genera con: `openssl rand -hex 32` |
-| `SENDGRID_API_KEY` / `FROM_EMAIL` | Solo si quieres **enviar** desde tu PC (opcional) |
-| `SUPABASE_*` | Solo si quieres guardar listas y tracking en BD en local |
+| Variable | Purpose |
+| -------- | ------- |
+| `APP_LOGIN_PASSWORD` | Password to sign in at http://localhost:3000 |
+| `SESSION_SECRET` | Generate with: `openssl rand -hex 32` |
+| `SENDGRID_API_KEY` / `FROM_EMAIL` | Only if you want to **send** from your PC (optional) |
+| `SUPABASE_*` | Only if you want to save lists and tracking locally |
 
 ```bash
 npm start
 ```
 
-Abre: http://localhost:3000  
+Open: http://localhost:3000
 
-> El archivo **`.env`** no se sube a Git (está en `.gitignore`).
+> The **`.env`** file is not committed to Git (it is in `.gitignore`).
 
-## 3. Vercel (un solo proyecto)
+## 3. Vercel (single project)
 
-### Ramas
+### Branches
 
-- **`master` (o la rama “Production” del proyecto)** → URL de **producción**.
-- **`staging`** → deploy **Preview** (URL distinta, tipo `…-git-staging-….vercel.app`).
+- **`master` (or the project “Production” branch)** → **production** URL.
+- **`staging`** → **Preview** deploy (different URL, e.g. `…-git-staging-….vercel.app`).
 
-### Variables en Vercel
+### Variables in Vercel
 
 **Project → Settings → Environment Variables**
 
-- Añade las mismas claves que en `.env.example`.
-- Marca cada una para **Production** y/o **Preview** según corresponda.
-- Si quieres datos de prueba en staging, en **Preview** usa **otros** valores de `SESSION_SECRET` y `APP_LOGIN_PASSWORD` que en **Production**.
+- Add the same keys as in `.env.example`.
+- Mark each for **Production** and/or **Preview** as needed.
+- For test data on staging, use **different** `SESSION_SECRET` and `APP_LOGIN_PASSWORD` values in **Preview** than in **Production**.
 
-Tras cambiar variables: **Deployments → Redeploy** del deploy que quieras probar.
+After changing variables: **Deployments → Redeploy** the deploy you want to test.
 
-### SendGrid — Webhook de aperturas
+### SendGrid — open tracking webhook
 
-En SendGrid, Event Webhook HTTP POST:
+In SendGrid, Event Webhook HTTP POST:
 
-`https://<TU_DOMINIO_VERCEL>/api/sendgrid/events`
+`https://<YOUR_VERCEL_DOMAIN>/api/sendgrid/events`
 
-Usa la URL del **Preview** si pruebas solo `staging`, o la de **Production** cuando toque. Suele poder configurarse **una** URL por cuenta (valida primero en staging y luego cambia a prod si hace falta).
+Use the **Preview** URL if you only test `staging`, or **Production** when ready. Many accounts allow only **one** webhook URL (validate on staging first, then switch to prod if needed).
 
-## 4. Supabase (una vez por proyecto)
+## 4. Supabase (once per project)
 
-1. En el SQL Editor de Supabase, ejecuta el archivo: **`supabase/schema.sql`**.
-2. **Storage** → crea un bucket **privado** con el nombre de `SUPABASE_STORAGE_BUCKET` (ej. `contact-uploads`).
-3. En **Settings → API** copia **Project URL** (`SUPABASE_URL`) y la clave **`service_role`** (`SUPABASE_SERVICE_ROLE_KEY`). No uses la clave `anon` en el servidor.
+1. In the Supabase SQL Editor, run: **`supabase/schema.sql`**.
+2. **Storage** → create a **private** bucket named after `SUPABASE_STORAGE_BUCKET` (e.g. `contact-uploads`).
+3. In **Settings → API**, copy **Project URL** (`SUPABASE_URL`) and the **`service_role`** key (`SUPABASE_SERVICE_ROLE_KEY`). Do not use the `anon` key on the server.
 
-## 5. Enlaces útiles en el repo
+## 5. Useful links in the repo
 
-- Variables de ejemplo: `.env.example`
-- Documentación general: `README.md`
-- Esquema de base de datos: `supabase/schema.sql`
+- Example variables: `.env.example`
+- General documentation: `README.md`
+- Database schema: `supabase/schema.sql`
 
-## 6. Recordatorio de seguridad
+## 6. Security reminder
 
-- No subas **`.env`** ni API keys al repositorio.
-- Rota claves si crees que alguien las pudo ver.
+- Do not commit **`.env`** or API keys to the repository.
+- Rotate keys if you think someone may have seen them.
 
 ---
-*Última actualización alineada con la rama `staging` del proyecto Email Sender.*
+*Last updated for the Email Sender project `staging` branch.*

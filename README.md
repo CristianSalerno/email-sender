@@ -1,8 +1,8 @@
 # Email Sender App
 
-App para enviar emails masivos con adjuntos, con opción de guardar listas por categoría en Supabase y seguimiento de aperturas vía SendGrid.
+Bulk email app with attachments, optional category-based contact lists in Supabase, and open tracking via SendGrid.
 
-**Guía para clonar y desplegar desde otro ordenador:** [`GUIA_DESDE_OTRO_EQUIPO.md`](GUIA_DESDE_OTRO_EQUIPO.md).
+**Guide to clone and deploy from another computer:** [`GUIA_DESDE_OTRO_EQUIPO.md`](GUIA_DESDE_OTRO_EQUIPO.md).
 
 ## Installation
 
@@ -11,64 +11,64 @@ cd email-sender
 npm install
 ```
 
-## Variables: localhost vs producción / staging
+## Variables: localhost vs production / staging
 
-| Dónde | Qué usar |
-| ----- | -------- |
-| **Localhost** | Archivo **`.env`** en la raíz (ignorado por Git). Rellena `SENDGRID_*` y, si quieres guardar listas y campañas, `SUPABASE_*`. Inicia sesión con `APP_LOGIN_PASSWORD`. Tras editar `.env`, reinicia `npm start`. |
-| **Producción (Vercel)** | Mismos **nombres** que en `.env.example`, valores del entorno real: contraseña fuerte, **otro** `SESSION_SECRET` (no reutilices el de tu Mac), SendGrid y Supabase de producción. |
-| **Staging (Vercel, otro proyecto)** | Todas las variables otra vez con valores de **prueba**: otras contraseñas/secretos, idealmente otro Supabase (u otro bucket) y opcionalmente otra API SendGrid. La URL del deploy sirve para el webhook mientras pruebas. |
+| Where | What to use |
+| ----- | ----------- |
+| **Localhost** | **`.env`** file in the project root (ignored by Git). Fill in `SENDGRID_*` and, if you want to save lists and campaigns, `SUPABASE_*`. Sign in with `APP_LOGIN_PASSWORD`. After editing `.env`, restart `npm start`. |
+| **Production (Vercel)** | Same **names** as in `.env.example`, with real environment values: a strong password, a **different** `SESSION_SECRET` (do not reuse your local one), and production SendGrid and Supabase credentials. |
+| **Staging (Vercel, separate project)** | All variables again with **test** values: different passwords/secrets, ideally a separate Supabase project (or bucket) and optionally a separate SendGrid API key. The deploy URL can be used for the webhook while testing. |
 
-En cada sitio usas el **mismo listado de variables**; lo que cambia son los **valores** (local ≠ prod ≠ staging).
+Each environment uses the **same list of variables**; only the **values** change (local ≠ prod ≠ staging).
 
 ## Environment variables
 
-**Local:** existe un **`.env`** en la raíz (no se sube al repo) o copia [`.env.example`](.env.example) a `.env` y rellénalo. Ejecuta `npm start`; el servidor carga `.env` con `dotenv`.
+**Local:** create a **`.env`** file in the root (not committed to the repo) or copy [`.env.example`](.env.example) to `.env` and fill it in. Run `npm start`; the server loads `.env` with `dotenv`.
 
-**Vercel:** **Settings → Environment Variables** → mismas claves que en `.env.example`.
+**Vercel:** **Settings → Environment Variables** → same keys as in `.env.example`.
 
 | Variable | Description |
 | -------- | ----------- |
-| `APP_LOGIN_PASSWORD` | Password única para entrar a la app (cámbiala por una fuerte y guárdala solo en el servidor). |
-| `SESSION_SECRET` | Cadena aleatoria larga para firmar la cookie de sesión. **No** uses la misma que la contraseña de la app ni la de la base de datos. Genera una con `openssl rand -hex 32` o `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. |
-| `SENDGRID_API_KEY` | API key de SendGrid con permiso de envío. **Vercel:** solo en **Environment Variables** del proyecto (no hace falta `.env` en el repo). **Local:** si quieres enviar desde `npm start`, cópiala también en tu `.env` local. |
-| `FROM_EMAIL` | Email remitente verificado en SendGrid. Igual: Vercel → variables del proyecto; local → `.env` solo si pruebas en tu máquina. |
-| `SUPABASE_URL` | URL del proyecto: **Project Settings → API → Project URL** (ej. `https://xxxx.supabase.co`). |
-| `SUPABASE_SERVICE_ROLE_KEY` | Clave **service_role** (secreta) en **Project Settings → API**. Necesaria para Storage e inserts desde el servidor. **No** uses la clave `anon` ni claves “publishable” en el cliente público para este backend. |
-| `SUPABASE_STORAGE_BUCKET` | Nombre del bucket privado en Supabase Storage (ej. `contact-uploads`). Debe existir y coincidir con el nombre que creaste en el dashboard. |
-| `PORT` | Solo local; por defecto `3000`. |
-| `GEMINI_API_KEY` | Opcional. API key gratuita de [Google AI Studio](https://aistudio.google.com/apikey) para redactar emails con IA en la pantalla de composición. |
-| `GEMINI_MODEL` | Opcional. Por defecto `gemini-2.0-flash` (plan gratuito). |
+| `APP_LOGIN_PASSWORD` | Single password to access the app (use a strong one and store it only on the server). |
+| `SESSION_SECRET` | Long random string to sign the session cookie. **Do not** reuse the app password or database password. Generate with `openssl rand -hex 32` or `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. |
+| `SENDGRID_API_KEY` | SendGrid API key with send permission. **Vercel:** set only in project **Environment Variables** (no `.env` in the repo). **Local:** copy it to your local `.env` if you want to send from `npm start`. |
+| `FROM_EMAIL` | Sender email verified in SendGrid. Same pattern: Vercel → project variables; local → `.env` only when testing on your machine. |
+| `SUPABASE_URL` | Project URL: **Project Settings → API → Project URL** (e.g. `https://xxxx.supabase.co`). |
+| `SUPABASE_SERVICE_ROLE_KEY` | **service_role** key (secret) in **Project Settings → API**. Required for Storage and server-side inserts. **Do not** use the `anon` or publishable keys for this backend. |
+| `SUPABASE_STORAGE_BUCKET` | Private Supabase Storage bucket name (e.g. `contact-uploads`). Must exist and match the name created in the dashboard. |
+| `PORT` | Local only; defaults to `3000`. |
+| `GEMINI_API_KEY` | Optional. Free API key from [Google AI Studio](https://aistudio.google.com/apikey) for AI email drafting in the compose screen. |
+| `GEMINI_MODEL` | Optional. Defaults to `gemini-2.0-flash` (free tier). |
 
-### Asistente IA (Gemini, gratis)
+### AI assistant (Gemini, free)
 
-1. Entra en [Google AI Studio](https://aistudio.google.com/apikey) con tu cuenta Google.
-2. Crea una **API key** (plan gratuito: ~15 req/min en Flash, suficiente para redactar emails).
-3. Añade `GEMINI_API_KEY` en Vercel (o en `.env` local) y redeploy.
-4. En **Compose**, usa *Generate email*, *Suggest subjects* o *Improve message*.
+1. Go to [Google AI Studio](https://aistudio.google.com/apikey) with your Google account.
+2. Create an **API key** (free tier: ~15 req/min on Flash, enough for drafting emails).
+3. Add `GEMINI_API_KEY` in Vercel (or local `.env`) and redeploy.
+4. On the **Message** step, use *Generate email*, *Suggest subjects*, or *Improve message*.
 
-**Importante:** no actives facturación en el proyecto de Google si solo quieres el tier gratuito.
+**Important:** do not enable billing on the Google project if you only want the free tier.
 
-### SendGrid Event Webhook (aperturas)
+### SendGrid Event Webhook (opens)
 
-En SendGrid, configura el webhook HTTP POST apuntando a:
+In SendGrid, configure the HTTP POST webhook to:
 
-`https://TU-DOMINIO/api/sendgrid/events`
+`https://YOUR-DOMAIN/api/sendgrid/events`
 
-Incluye al menos eventos **processed**, **delivered**, **open** (y opcionalmente **bounce**, **dropped**, **deferred**). En muchas cuentas solo hay **una** URL de Event Webhook: suele usarse primero en staging y luego se cambia a producción, o un subuser con su propia URL.
+Include at least **processed**, **delivered**, and **open** events (and optionally **bounce**, **dropped**, **deferred**). Many accounts only allow **one** Event Webhook URL: use staging first, then switch to production, or use a subuser with its own URL.
 
-### Supabase: SQL y Storage
+### Supabase: SQL and Storage
 
-1. En **SQL Editor**, ejecuta [`supabase/schema.sql`](supabase/schema.sql).
-2. En **Storage**, crea un bucket **privado** cuyo nombre sea exactamente `SUPABASE_STORAGE_BUCKET`.
+1. In **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql).
+2. In **Storage**, create a **private** bucket whose name exactly matches `SUPABASE_STORAGE_BUCKET`.
 
-### Supabase: evitar pausa por inactividad (plan gratuito)
+### Supabase: avoid free-tier pause
 
-En el plan gratuito, Supabase **pausa el proyecto tras ~7 días sin actividad**. SendGrid no se pausa; lo que falla es la base de datos (contactos, campañas, tracking).
+On the free plan, Supabase **pauses the project after ~7 days of inactivity**. SendGrid does not pause; what breaks is the database (contacts, campaigns, tracking).
 
-- Tras pulsar **Resume** en el dashboard de Supabase, espera **1–3 minutos** antes de usar la app; las peticiones fallan mientras el proyecto arranca.
-- Este proyecto incluye un **cron diario** en Vercel (`/api/keepalive`) que consulta Supabase para mantener el proyecto activo. Tras desplegar, en Vercel → **Settings → Environment Variables** añade `CRON_SECRET` (genera uno con `openssl rand -hex 32`).
-- Para un cliente en producción, valora **Supabase Pro** (~25 USD/mes): el proyecto no se pausa automáticamente.
+- After clicking **Resume** in the Supabase dashboard, wait **1–3 minutes** before using the app; requests fail while the project starts up.
+- This project includes a **daily cron** on Vercel (`/api/keepalive`) that queries Supabase to keep the project active. After deploying, add `CRON_SECRET` in Vercel → **Settings → Environment Variables** (generate with `openssl rand -hex 32`).
+- For production clients, consider **Supabase Pro** (~$25/month): the project is not paused automatically.
 
 ## Usage
 
@@ -76,9 +76,9 @@ En el plan gratuito, Supabase **pausa el proyecto tras ~7 días sin actividad**.
 npm start
 ```
 
-Abre http://localhost:3000 e inicia sesión con la contraseña configurada en `APP_LOGIN_PASSWORD`.
+Open http://localhost:3000 and sign in with the password set in `APP_LOGIN_PASSWORD`.
 
-## Formatos aceptados
+## Supported formats
 
-- **Excel**: Columna `email` o primera columna
-- **TXT**: Un email por línea, separado por comas o punto y coma
+- **Excel**: `email` column or first column
+- **TXT**: One email per line, separated by commas or semicolons
